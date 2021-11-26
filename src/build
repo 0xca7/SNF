@@ -1,0 +1,38 @@
+#!/bin/bash
+
+if [ "$#" -ne 1 ]; then
+    echo "usage: ./build [argument]"
+	echo "-- arguments:"
+	echo "-- clean     - cleans project"
+	echo "-- test      - builds test"
+	echo "-- release   - builds release code"
+
+else
+    case $1 in
+        clean)
+            echo "[ CLEAN ]"
+            # commands follow here.
+            ninja clean
+            ;;
+        test)
+            echo "[ TEST ]"
+            echo "[ configuring cmake for testing ]"
+            cmake -GNinja -DTARGET_GROUP=test .
+            echo "[ building tests with ninja ]"
+            ninja -v
+            ;;
+        release)
+            echo "[ RELEASE ]"
+            echo "[ configuring cmake for production ]" 
+            cmake -GNinja -DTARGET_GROUP=production .
+            echo "[ building tests with ninja ]"
+            ninja -v
+            ;;
+        *)
+            echo "!! unknown command."
+            ;;
+    esac 
+
+    echo "[ SCRIPT DONE. ]"
+
+fi
