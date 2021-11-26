@@ -8,4 +8,3 @@ target_link_libraries(module_fuzzer_app
 )
 
 add_test(module_fuzzer_test module_fuzzer_app)
-

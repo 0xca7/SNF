@@ -30,6 +30,16 @@
  * TYPES / DATA STRUCTURES
  **************************************************************************/
 
+/**
+ * @brief fuzz modes available
+ * @fuzz_modes
+ */
+typedef enum 
+{
+    FUZZ_MODE_IP_OPTIONS,
+    FUZZ_MODE_TCP_OPTIONS,
+} e_fuzz_mode_t; 
+
 /***************************************************************************
  * GLOBALS
  **************************************************************************/
@@ -37,6 +47,13 @@
 /***************************************************************************
  * FUNCTION PROTOTYPES
  **************************************************************************/
+
+/**
+ * @brief initializes the fuzzer
+ * @param[in] mode the mode to use for fuzzing, see @fuzz_modes
+ * @return -1 on failure, 0 on success
+ */
+int fuzzer_init(e_fuzz_mode_t mode);
 
 
 
