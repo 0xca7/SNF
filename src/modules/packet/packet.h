@@ -28,8 +28,12 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
+
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <linux/icmp.h>
+#include <netdb.h>
 
 #include <assert.h>
 
@@ -50,30 +54,14 @@
  **************************************************************************/
 
 /**
- * @brief initializes the packet functionality
- * @param[in] protocol specifier for protocol to use see @protos
- *            is one of: 
- *            [IPPROTO_TCP, IPPROTO_RAW, IPPROTO_UDP, IPPROTO_ICMP]
+ * @brief builds a tcp packet
+ * @param[inout] buffer stores the assembles TCP packet
+ * @param[in] buffer_size size of the buffer param in bytes
  * @return -1 on failure, 0 on success
  */
 extern int 
-packet_init(int protocol);
+packet_build_tcp(uint8_t *buffer, uint32_t buffer_size);
 
-/**
- * @brief send data via initialized packet module
- * @param buffer the buffer to send
- * @param buffer_size the size of the buffer / bytes in buffer
- * @return -1 on failure, 0 on success
- */
-extern int 
-packet_send(uint8_t *buffer, uint32_t buffer_size);
-
-/**
- * @brief de-initializes the packet functionality 
- * @ return -1 on failure, 0 on success
- */
-extern int 
-packet_deinit(void);
 
 #endif /* PACKET_H */
 
