@@ -88,6 +88,7 @@ int
 networking_init(int protocol)
 {
     int ret = NETWORKING_FAILURE;
+    int optval = 1;
     
     /* if the protocol is not valid, there is not point in 
        continuing */
@@ -100,9 +101,47 @@ networking_init(int protocol)
         }
         else
         {
-            g_initialized = true;
-            ret = NETWORKING_SUCCESS;
-        }
+            /* set the socket options for the created socket 
+               so that no ip header is included, we write this
+               ourselves */
+            ret = setsockopt(g_sockfd, IPPROTO_IP, IP_HDRINCL,
+                &optval, sizeof(optval));
+            if(ret == -1)
+            {
+                printf("[NETWORKING] (setsockopt) %s\n", strerror(errno));
+            }
+            else 
+            {
+                g_initialized = true;
+                ret = NETWORKING_SUCCESS;
+            } /* setsockopt */
+        } /* socket */
+    } /* networking_check_protocol */
+
+
+    return ret;
+}
+
+int
+networking_send(uint8_t *buffer, uint32_t buffer_size) 
+{
+    assert(g_initialized);
+
+    int ret = NETWORKING_FAILURE;
+    struct sockaddr_in source = {0};
+    
+    source.sin_family = AF_INET;
+    source.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    ret = sendto(g_sockfd, buffer, buffer_size, 0, (struct sockaddr *)&source, sizeof(source));
+
+    if(ret == -1)
+    {
+        printf("[NETWORKING] (sendto) %s\n", strerror(errno));
+    }
+    else 
+    {
+        ret = NETWORKING_SUCCESS;
     }
 
     return ret;

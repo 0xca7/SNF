@@ -4,6 +4,7 @@ add_executable(module_networking_app
 
 target_link_libraries(module_networking_app
     networking
+    packet
     Unity
 )
 

@@ -62,10 +62,14 @@ test_ip_calculate_checksum(void)
  *********************************************************/
 
 /**
- * @brief tests the packet_init and deinit functions
+ * @brief test building a TCP packet
  * - tests success cases
  */
-
+void
+test_packet_build_tcp(void) {
+    uint8_t buffer[256] = { 0x00 };
+    packet_build_tcp(&buffer[0], 256);
+}
 
 /**********************************************************
  * Test Main
@@ -76,6 +80,7 @@ main(void)
     UNITY_BEGIN();
 
     RUN_TEST(test_ip_calculate_checksum);
+    RUN_TEST(test_packet_build_tcp);
 
     return UNITY_END();
 }

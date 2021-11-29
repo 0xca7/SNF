@@ -5,6 +5,7 @@
  */
 #include <unity.h>
 #include <networking.h>
+#include <packet.h>
 #include "../../modules/networking/networking.c"
 
 
@@ -65,6 +66,29 @@ test_networking_init_deinit(void)
  
 }
 
+/**
+ * @brief tests sending a network packet
+ */
+void
+test_networking_send(void)
+{
+    uint8_t packet[256] = { 0x00 };
+
+    TEST_ASSERT_EQUAL_INT(0,
+        networking_init(IPPROTO_TCP));
+
+    if(packet_build_tcp(&packet[0], 256) == -1) 
+    {
+        printf("[TEST WARNING] building tcp packet failed\n");
+    }
+    
+    TEST_ASSERT_EQUAL_INT(0,
+        networking_send(&packet[0], 44));
+
+    TEST_ASSERT_EQUAL_INT(0,
+        networking_deinit());
+}
+
 
 /**********************************************************
  * Test Main
@@ -75,6 +99,7 @@ main(void)
     UNITY_BEGIN();
 
     RUN_TEST(test_networking_init_deinit);
+    RUN_TEST(test_networking_send);
 
     return UNITY_END();
 }

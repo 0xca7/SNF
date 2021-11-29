@@ -109,30 +109,60 @@ packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
 {
     assert(buffer_size >= PACKET_SIZE_TCP);
 
+    /* NOTE: either have this function memset the buffer 
+             or the caller */
+
     IP *iphdr = (IP *)buffer;
     TCP *tcphdr = (TCP *)(buffer + sizeof(IP));
+    uint8_t tcp_options[4] = { 0x00 };
 
-    /* octet 1: version and header length */
-    iphdr->ihl = 4;
-    iphdr->version = 5;
+    /* build the IP header */
+    iphdr->version = 4;
+    iphdr->ihl = 5;
+
     /* octet 2: DSCP and ECN are missing */
 
-    /* octett 3+4: length of whole packet in bytes, including IP header */
-    iphdr->tot_len = 0;
+    /* NOTE: add PRNG here */
+    iphdr->id = htons(0xdead) + 1; /* rand() & 0xffff + 1 */
 
-    /* octet 5+6 id field */
-    iphdr->id = 0; /* rand() & 0xffff + 1 */
+    /* this value is not passed in, but retreived in init function */
+    iphdr->saddr = inet_addr("127.0.0.1");
 
-    /* octet 7-8 is flags+fragment offset, which are ignored */
-    
-    /* octet TTL, octet Protocol, two octets header checksum */
+    iphdr->daddr = inet_addr("127.0.0.1");
+
     iphdr->protocol = IPPROTO_TCP;
     iphdr->ttl = 255;
 
     /* set to zero for calculation */
     iphdr->check = 0;
-    iphdr->check = 0;
+    iphdr->check = ip_calculate_checksum(&buffer[0], sizeof(IP));
 
+    iphdr->tot_len = htons(sizeof(IP)+sizeof(TCP)+4);
+    
+    /* build the TCP header */
+    /* NOTE: this value is random */
+    tcphdr->source = htons(0x1e61);
+
+    tcphdr->dest = 0x15b3;
+    tcphdr->seq = 0;
+    tcphdr->ack_seq = 1;
+    
+    /* offset is measured in 32-bit words. the standard offset value
+       is the header size. here, bytes/one word of options are added */
+    tcphdr->doff = ((sizeof(TCP)+4) / 4);
+
+    tcphdr->syn = 1;
+    tcphdr->window = htons(5840);
+    tcphdr->check = 0;
+
+    /* set dummy options */
+    tcp_options[0] = 2;
+    tcp_options[1] = 4;
+    tcp_options[2] = 0;
+    tcp_options[3] = 0xff;
+
+    memcpy(buffer+sizeof(IP)+sizeof(TCP), tcp_options, 4);
+    
     return PACKET_SUCCESS;
 }
 
