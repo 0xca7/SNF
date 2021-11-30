@@ -8,5 +8,6 @@ target_include_directories(networking PUBLIC
 
 target_link_libraries(networking
     #global_cfg
+    util
 )
 

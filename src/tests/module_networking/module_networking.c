@@ -77,6 +77,13 @@ test_networking_send(void)
     TEST_ASSERT_EQUAL_INT(0,
         networking_init(IPPROTO_TCP));
 
+    /* correctness is tested in seperate unit test */
+    if(util_prng_init() == -1) 
+    {
+        printf("[TEST WARNING] building tcp packet failed\n");
+    }
+    
+    /* correctness is tested in seperate unit test */
     if(packet_build_tcp(&packet[0], 256) == -1) 
     {
         printf("[TEST WARNING] building tcp packet failed\n");

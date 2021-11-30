@@ -68,6 +68,7 @@ test_ip_calculate_checksum(void)
 void
 test_packet_build_tcp(void) {
     uint8_t buffer[256] = { 0x00 };
+    util_prng_init();
     packet_build_tcp(&buffer[0], 256);
 }
 

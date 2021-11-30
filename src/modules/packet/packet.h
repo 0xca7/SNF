@@ -28,7 +28,6 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
@@ -37,8 +36,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
 #include <assert.h>
+
+/* project specific modules */
+#include <util.h>
 
 /***************************************************************************
  * MACROS

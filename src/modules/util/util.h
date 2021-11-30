@@ -1,12 +1,12 @@
-/** @file networking.h
+/** @file util.h
  * 
- * @brief A description of the module’s purpose. 
+ * @brief contains uncategorized utility functions
  * 
  */ 
 
 /**
  * Author:  0xca7
- * Desc:    this is a template header
+ * Desc:    various utility functions for the fuzzer
  *
  */
 
@@ -15,8 +15,8 @@
  * [dd/mm/yyyy][author]: change
  */
 
-#ifndef NETWORKING_H
-#define NETWORKING_H
+#ifndef UTIL_H
+#define UTIL_H
 
 /***************************************************************************
  * LIBRARIES
@@ -28,12 +28,16 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <assert.h>
+#include <time.h>
 
-/* project specific module */
-#include <util.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <arpa/inet.h>
+
+#include <assert.h>
 
 /***************************************************************************
  * MACROS
@@ -52,32 +56,30 @@
  **************************************************************************/
 
 /**
- * @brief initializes the networking functionality
- * @param[in] protocol specifier for protocol to use see @protos
- *            is one of: 
- *            [IPPROTO_TCP, IPPROTO_RAW, IPPROTO_UDP, IPPROTO_ICMP]
+ * @brief initialized the module internal prng
  * @return -1 on failure, 0 on success
  */
-extern int 
-networking_init(int protocol);
+extern int util_prng_init(void);
 
 /**
- * @brief send data via initialized networking module
- * @param buffer the buffer to send
- * @param buffer_size the size of the buffer / bytes in buffer
+ * @brief generate a random u64 value
+ * @warning caller must ensure util_prng_init is called before
+ *          using this function!
  * @return -1 on failure, 0 on success
  */
-extern int 
-networking_send(uint8_t *buffer, uint32_t buffer_size);
+extern uint64_t util_prng_gen(void);
 
 /**
- * @brief de-initializes the networking functionality 
- * @ return -1 on failure, 0 on success
+ * @brief get the ip address assigned to a NIC, if it exists
+ * @warning caller must make sure `ip` is large enough to hold result
+ * @param[in] ifname the name of the interface to query
+ * @param[inout] ip buffer to hold the IP
+ * @return -1 on failure, 0 on success
  */
-extern int 
-networking_deinit(void);
+extern int util_get_nic_ip(char *ifname, char *ip);
 
-#endif /* NETWORKING_H */
+
+#endif /* UTIL_H */
 
 /*** end of file ***/
 

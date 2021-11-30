@@ -30,17 +30,18 @@
 #define PACKET_SUCCESS  0
 #define PACKET_FAILURE  -1
 
+#define PACKET_SIZE_TCP ( (uint32_t)sizeof(IP) + (uint32_t)sizeof(TCP) + 4 )
+
+#define TCP_STANDARD_WINDOW_LEN 5840
+
+/***************************************************************************
+ * TYPES / DATA STRUCTURES
+ **************************************************************************/
 /** typedef for `struct iphdr` from netinet */
 typedef struct iphdr IP;
 
 /** typedef for `struct tcphdr ` from netinet */
 typedef struct tcphdr TCP;
-
-#define PACKET_SIZE_TCP ( (uint32_t)sizeof(IP) + (uint32_t)sizeof(TCP) + 4 )
-
-/***************************************************************************
- * TYPES / DATA STRUCTURES
- **************************************************************************/
 
 /***************************************************************************
  * GLOBALS
@@ -107,7 +108,18 @@ ip_calculate_checksum(uint8_t *bytes, uint16_t len)
 int 
 packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
 {
+    assert(buffer != NULL);
     assert(buffer_size >= PACKET_SIZE_TCP);
+
+    /* IP header, TCP header and TCP options */
+    const uint16_t TOTAL_PACKET_SIZE = (uint16_t)PACKET_SIZE_TCP;
+    /* TCP header and TCP options, without IP header */
+    const uint16_t TCP_SIZE = htons((uint16_t)PACKET_SIZE_TCP - sizeof(IP));
+    const uint16_t PSEUDO_HEADER_SIZE = PACKET_SIZE_TCP - sizeof(IP) + 12;
+
+    /* the 12-byte pseudo header for TCP checksum calculation 
+       the entire TCP segment is appended to this */
+    uint8_t pseudo_header[1024] = {0x00};
 
     /* NOTE: either have this function memset the buffer 
              or the caller */
@@ -122,12 +134,10 @@ packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
 
     /* octet 2: DSCP and ECN are missing */
 
-    /* NOTE: add PRNG here */
-    iphdr->id = htons(0xdead) + 1; /* rand() & 0xffff + 1 */
+    iphdr->id = (uint16_t)((util_prng_gen() & 0xffff) + 1);
 
     /* this value is not passed in, but retreived in init function */
     iphdr->saddr = inet_addr("127.0.0.1");
-
     iphdr->daddr = inet_addr("127.0.0.1");
 
     iphdr->protocol = IPPROTO_TCP;
@@ -137,23 +147,23 @@ packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
     iphdr->check = 0;
     iphdr->check = ip_calculate_checksum(&buffer[0], sizeof(IP));
 
-    iphdr->tot_len = htons(sizeof(IP)+sizeof(TCP)+4);
+    iphdr->tot_len = TOTAL_PACKET_SIZE;
     
     /* build the TCP header */
     /* NOTE: this value is random */
-    tcphdr->source = htons(0x1e61);
+    tcphdr->source = (uint16_t)((util_prng_gen() & 0xffff) + 1);
 
-    tcphdr->dest = 0x15b3;
-    tcphdr->seq = 0;
-    tcphdr->ack_seq = 1;
+    tcphdr->dest = htons(0x15b3);
+    tcphdr->seq = (uint32_t)((util_prng_gen() & 0xffff) + 1);
+    tcphdr->ack_seq = 0;
     
     /* offset is measured in 32-bit words. the standard offset value
        is the header size. here, bytes/one word of options are added */
     tcphdr->doff = ((sizeof(TCP)+4) / 4);
 
     tcphdr->syn = 1;
+
     tcphdr->window = htons(5840);
-    tcphdr->check = 0;
 
     /* set dummy options */
     tcp_options[0] = 2;
@@ -161,8 +171,26 @@ packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
     tcp_options[2] = 0;
     tcp_options[3] = 0xff;
 
-    memcpy(buffer+sizeof(IP)+sizeof(TCP), tcp_options, 4);
+    memcpy(buffer+TOTAL_PACKET_SIZE-4, tcp_options, 4);
+
+    /* calculate checksum here. */
+    tcphdr->check = 0;
+
+    /* TCP pseudo header is: 
+       IP src, IP dest, zero byte, protocol, tcp segment length,
+       full TCP segment */
+    memcpy(pseudo_header+0, (uint8_t*)&iphdr->saddr, 4);
+    memcpy(pseudo_header+4, (uint8_t*)&iphdr->daddr, 4);
+    /* zero byte skipped, already initialized to zero */
+    memcpy(pseudo_header+9, (uint8_t*)&iphdr->protocol, 1);
+    memcpy(pseudo_header+10, (uint8_t*)&TCP_SIZE, 2);
+    /* add full TCP segment */
+    memcpy(pseudo_header+12, buffer+sizeof(IP), htons(TCP_SIZE));
+
+    tcphdr->check = ip_calculate_checksum(&pseudo_header[0], 
+        PSEUDO_HEADER_SIZE);
     
+
     return PACKET_SUCCESS;
 }
 
