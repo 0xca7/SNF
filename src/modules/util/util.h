@@ -59,7 +59,8 @@
  * @brief initialized the module internal prng
  * @return -1 on failure, 0 on success
  */
-extern int util_prng_init(void);
+extern int 
+util_prng_init(void);
 
 /**
  * @brief generate a random u64 value
@@ -67,7 +68,8 @@ extern int util_prng_init(void);
  *          using this function!
  * @return -1 on failure, 0 on success
  */
-extern uint64_t util_prng_gen(void);
+extern uint64_t 
+util_prng_gen(void);
 
 /**
  * @brief get the ip address assigned to a NIC, if it exists
@@ -76,7 +78,8 @@ extern uint64_t util_prng_gen(void);
  * @param[inout] ip buffer to hold the IP
  * @return -1 on failure, 0 on success
  */
-extern int util_get_nic_ip(char *ifname, char *ip);
+extern int 
+util_get_nic_ip(char *ifname, char *ip);
 
 
 #endif /* UTIL_H */

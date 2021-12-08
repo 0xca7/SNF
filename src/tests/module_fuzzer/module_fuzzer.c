@@ -52,6 +52,35 @@ test_fuzzer_check_mode(void)
 
 }
 
+void
+test_fuzzer_convert_ip(void) 
+{
+    struct in_addr ip_addr;
+    char ip_str[16] = "127.0.0.1";
+
+    char ip_invalid[16] = "555.555.555.555";
+
+    TEST_ASSERT_EQUAL_INT(0, 
+        fuzzer_convert_ip((const char*)&ip_str[0], &ip_addr));
+
+    TEST_ASSERT_EQUAL_HEX32(0x0100007f, ip_addr.s_addr);
+
+    TEST_ASSERT_EQUAL_INT(-1, 
+        fuzzer_convert_ip((const char*)&ip_invalid[0], &ip_addr));
+}
+
+void
+test_fuzzer_mode_to_ascii() 
+{
+    TEST_ASSERT_EQUAL_STRING(MODE_STRING_IP_OPTIONS,
+        fuzzer_mode_to_ascii(FUZZ_MODE_IP_OPTIONS));
+
+    TEST_ASSERT_EQUAL_STRING(MODE_STRING_TCP_OPTIONS,
+        fuzzer_mode_to_ascii(FUZZ_MODE_TCP_OPTIONS));
+
+    TEST_ASSERT_EQUAL_STRING(MODE_STRING_INVALID,
+        fuzzer_mode_to_ascii(999));
+}
 
 /**********************************************************
  * Test Cases - Public Functions
@@ -63,37 +92,52 @@ test_fuzzer_check_mode(void)
 void
 test_fuzzer_new(void)
 {
-    fuzz_config_t *cfg = NULL;
-    cfg = fuzzer_new(
+    fuzz_config_t *p_cfg = NULL;
+    p_cfg = fuzzer_new(
         FUZZ_MODE_IP_OPTIONS,
+        "lo",
         "192.168.1.1",
         7777
     );
-    TEST_ASSERT_NOT_NULL(cfg);
 
-    /* test a faulty mode */
-    fuzz_config_t *fault = NULL;
-    fault = fuzzer_new(
+    fuzzer_print_config(p_cfg);
+
+    TEST_ASSERT_NOT_NULL(p_cfg);
+
+    /* test a p_faulty mode */
+    fuzz_config_t *p_fault = NULL;
+    p_fault = fuzzer_new(
         FUZZ_MODE_INVALID,
+        "lo",
         "192.168.1.1",
         7777
     );
-    TEST_ASSERT_NULL(fault);
+    TEST_ASSERT_NULL(p_fault);
     
-    /* test a faulty ip */
-    fault = fuzzer_new(
+    /* test a p_faulty ip */
+    p_fault = fuzzer_new(
         FUZZ_MODE_IP_OPTIONS,
+        "lo",
         "abcd",
         7777
     );
-    TEST_ASSERT_NULL(fault);
+    TEST_ASSERT_NULL(p_fault);
  
-    fault = fuzzer_new(
+    p_fault = fuzzer_new(
         FUZZ_MODE_IP_OPTIONS,
+        "lo",
         "10.0.0.1",
         0
     );
-    TEST_ASSERT_NULL(fault);
+    TEST_ASSERT_NULL(p_fault);
+
+    p_fault = fuzzer_new(
+        FUZZ_MODE_IP_OPTIONS,
+        "abcd",
+        "10.0.0.1",
+        7777
+    );
+    TEST_ASSERT_NULL(p_fault);
        
 }
 
@@ -104,8 +148,8 @@ test_fuzzer_new(void)
 void 
 test_fuzzer_init(void) 
 {
-    fuzz_config_t cfg = {0};
-    TEST_ASSERT_EQUAL_INT(0, fuzzer_init(&cfg));
+    fuzz_config_t p_cfg = {0};
+    TEST_ASSERT_EQUAL_INT(0, fuzzer_init(&p_cfg));
 }
 
 /**
@@ -115,14 +159,18 @@ test_fuzzer_init(void)
 void 
 test_fuzzer_deinit(void) 
 {
-    fuzz_config_t *cfg = fuzzer_new(
+    fuzz_config_t *p_cfg = fuzzer_new(
         FUZZ_MODE_IP_OPTIONS,
+        "lo",
         "127.0.0.1",
         7777
     );
-    TEST_ASSERT_NOT_NULL(cfg);
+    
+    fuzzer_print_config(p_cfg);
 
-    TEST_ASSERT_EQUAL_INT(0, fuzzer_deinit(cfg));
+    TEST_ASSERT_NOT_NULL(p_cfg);
+
+    TEST_ASSERT_EQUAL_INT(0, fuzzer_deinit(p_cfg));
 
 }
 
@@ -143,6 +191,8 @@ main(void)
     RUN_TEST(test_fuzzer_deinit);
 
     RUN_TEST(test_fuzzer_check_mode);
+    RUN_TEST(test_fuzzer_convert_ip);
+    RUN_TEST(test_fuzzer_mode_to_ascii);
 
     return UNITY_END();
 }

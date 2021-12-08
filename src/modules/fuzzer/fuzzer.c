@@ -31,6 +31,10 @@
 #define FUZZER_SUCCESS  0
 #define FUZZER_FAILURE  -1
 
+#define MODE_STRING_IP_OPTIONS  "IP Options Fuzzing"
+#define MODE_STRING_TCP_OPTIONS "TCP Options Fuzzing"
+#define MODE_STRING_INVALID     "Invalid Mode"
+
 /***************************************************************************
  * TYPES / DATA STRUCTURES
  **************************************************************************/
@@ -60,6 +64,14 @@ fuzzer_check_mode(e_fuzz_mode_t mode);
  */
 static int 
 fuzzer_convert_ip(const char ip[15], struct in_addr *ip_addr);
+
+/**
+ * @brief get the mode as an ASCII string for printing
+ * @param mode the fuzzer mode
+ * @return returns a string describing the mode
+ */
+static char*
+fuzzer_mode_to_ascii(e_fuzz_mode_t mode);
 
 /***************************************************************************
  * PRIVATE FUNCTIONS
@@ -100,18 +112,39 @@ fuzzer_convert_ip(const char ip[15], struct in_addr *ip_addr)
     return ret;
 }
 
+static char*
+fuzzer_mode_to_ascii(e_fuzz_mode_t mode)
+{
+    char *p_mode_string = NULL;
+
+    switch(mode)
+    {
+        case FUZZ_MODE_IP_OPTIONS:  
+            p_mode_string = MODE_STRING_IP_OPTIONS;
+        break;
+        case FUZZ_MODE_TCP_OPTIONS:
+            p_mode_string = MODE_STRING_TCP_OPTIONS;
+        break;
+        default:
+            p_mode_string = MODE_STRING_INVALID;
+        break;
+    }
+    return p_mode_string;
+}
 
 
 /***************************************************************************
  * PUBLIC FUNCTIONS
  **************************************************************************/
 fuzz_config_t*
-fuzzer_new(e_fuzz_mode_t mode, 
+fuzzer_new(e_fuzz_mode_t mode, char *ifname,
     const char target_ip[15], uint16_t target_port)
 {
+    assert(ifname != NULL);
     assert(target_ip != NULL);
 
     int ret = FUZZER_FAILURE;
+    char src_ip[16] = { 0x00 };
     fuzz_config_t *cfg = NULL;
 
     cfg = (fuzz_config_t*)malloc(sizeof(fuzz_config_t));
@@ -131,6 +164,21 @@ fuzzer_new(e_fuzz_mode_t mode,
 
     /* set the valid mode */
     cfg->mode = mode;
+
+    /* get, set and check ip address for source and target */
+    ret = util_get_nic_ip(ifname, &src_ip[0]);
+    if(ret == FUZZER_FAILURE)
+    {
+        printf("[FUZZER] couldn't get IP for interface %s\n", ifname);
+        goto FUZZER_NEW_FREE;
+    }
+
+    ret = fuzzer_convert_ip(src_ip, &cfg->src_ip);
+    if(ret == FUZZER_FAILURE)
+    {
+        printf("[FUZZER] invalid source ip\n");
+        goto FUZZER_NEW_FREE;
+    }
 
     /* check if the ip addr is valid */
     ret = fuzzer_convert_ip(target_ip, &cfg->target_ip);
@@ -178,6 +226,18 @@ fuzzer_deinit(fuzz_config_t *config)
 
     return FUZZER_SUCCESS;
 }
+
+void
+fuzzer_print_config(fuzz_config_t *p_config)
+{
+    printf("** FUZZING CONFIGURATION\n\n"); 
+    printf("-- Src IP:      %s\n", inet_ntoa(p_config->src_ip));
+    printf("-- Target IP:   %s\n", inet_ntoa(p_config->target_ip));
+    printf("-- Target Port: %d\n", p_config->target_port);
+    printf("-- Mode:        %s\n", fuzzer_mode_to_ascii(p_config->mode));
+    printf("**\n");
+}
+
 
 /*** end of file ***/
 

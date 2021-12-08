@@ -106,9 +106,9 @@ ip_calculate_checksum(uint8_t *bytes, uint16_t len)
  * PUBLIC FUNCTIONS
  **************************************************************************/
 int 
-packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
+packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size, uint8_t *p_options)
 {
-    assert(buffer != NULL);
+    assert(p_buffer != NULL);
     assert(buffer_size >= PACKET_SIZE_TCP);
 
     /* IP header, TCP header and TCP options */
@@ -124,9 +124,8 @@ packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
     /* NOTE: either have this function memset the buffer 
              or the caller */
 
-    IP *iphdr = (IP *)buffer;
-    TCP *tcphdr = (TCP *)(buffer + sizeof(IP));
-    uint8_t tcp_options[4] = { 0x00 };
+    IP *iphdr = (IP *)p_buffer;
+    TCP *tcphdr = (TCP *)(p_buffer + sizeof(IP));
 
     /* build the IP header */
     iphdr->version = 4;
@@ -145,7 +144,7 @@ packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
 
     /* set to zero for calculation */
     iphdr->check = 0;
-    iphdr->check = ip_calculate_checksum(&buffer[0], sizeof(IP));
+    iphdr->check = ip_calculate_checksum(&p_buffer[0], sizeof(IP));
 
     iphdr->tot_len = TOTAL_PACKET_SIZE;
     
@@ -165,13 +164,7 @@ packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
 
     tcphdr->window = htons(5840);
 
-    /* set dummy options */
-    tcp_options[0] = 2;
-    tcp_options[1] = 4;
-    tcp_options[2] = 0;
-    tcp_options[3] = 0xff;
-
-    memcpy(buffer+TOTAL_PACKET_SIZE-4, tcp_options, 4);
+    memcpy(p_buffer+TOTAL_PACKET_SIZE-4, p_options, 4);
 
     /* calculate checksum here. */
     tcphdr->check = 0;
@@ -185,11 +178,10 @@ packet_build_tcp(uint8_t *buffer, uint32_t buffer_size)
     memcpy(pseudo_header+9, (uint8_t*)&iphdr->protocol, 1);
     memcpy(pseudo_header+10, (uint8_t*)&TCP_SIZE, 2);
     /* add full TCP segment */
-    memcpy(pseudo_header+12, buffer+sizeof(IP), htons(TCP_SIZE));
+    memcpy(pseudo_header+12, p_buffer+sizeof(IP), htons(TCP_SIZE));
 
     tcphdr->check = ip_calculate_checksum(&pseudo_header[0], 
         PSEUDO_HEADER_SIZE);
-    
 
     return PACKET_SUCCESS;
 }

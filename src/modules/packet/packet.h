@@ -61,10 +61,11 @@
  * @brief builds a tcp packet
  * @param[inout] buffer stores the assembles TCP packet
  * @param[in] buffer_size size of the buffer param in bytes
+ * @param[in] p_options the TCP options to add to the packet
  * @return -1 on failure, 0 on success
  */
 extern int 
-packet_build_tcp(uint8_t *buffer, uint32_t buffer_size);
+packet_build_tcp(uint8_t *buffer, uint32_t buffer_size, uint8_t *p_options);
 
 
 #endif /* PACKET_H */
