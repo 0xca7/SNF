@@ -7,7 +7,7 @@ target_include_directories(fuzzer PUBLIC
 )
 
 target_link_libraries(fuzzer
-    #global_cfg
+    global_cfg
     util
 )
 

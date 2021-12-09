@@ -7,7 +7,7 @@ target_include_directories(generator PUBLIC
 )
 
 target_link_libraries(generator
-    #global_cfg
+    global_cfg
     util
 )
 
