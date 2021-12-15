@@ -52,6 +52,8 @@ test_generator_cycle_tcp_options()
             generator_cycle_tcp_options(&buffer[0], &len));
         iter++;
     }
+    TEST_ASSERT_EQUAL_INT(GENERATOR_CYCLE_DONE,
+        generator_cycle_tcp_options(&buffer[0], &len));
 }
 
 

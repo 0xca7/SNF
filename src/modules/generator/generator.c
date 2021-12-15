@@ -140,7 +140,7 @@ generator_cycle_tcp_options(uint8_t *p_tcp_options, int8_t *p_length)
         /* depending on the length value, fill the rest of the bytes */
         for(i = 0; i < *(p_tcp_options+1); i++)
         {
-            *(p_tcp_options+2+i) = 0;   /* random number */
+            *(p_tcp_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
         }
 
         g_cycle++;
@@ -160,6 +160,12 @@ generator_init(e_fuzz_mode_t mode)
     g_cycle = 0;
 
     return 0;
+}
+
+extern int
+generator_run_tcp(uint8_t *tcp_options, int8_t *len)
+{
+    return generator_cycle_tcp_options(tcp_options, len);
 }
 
 

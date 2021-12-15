@@ -4,5 +4,9 @@ add_executable(snf
 
 target_link_libraries(snf
     # add modules here
+    global_cfg
+    packet
+    generator
+    networking
 )
 
