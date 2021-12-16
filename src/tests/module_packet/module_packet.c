@@ -70,7 +70,7 @@ test_packet_build_tcp(void) {
     uint8_t buffer[256] = { 0x00 };
     uint8_t options[4] = { 0x02, 0x04, 0xde, 0xad };
     util_prng_init();
-    TEST_ASSERT_EQUAL_INT(0, 
+    TEST_ASSERT_GREATER_THAN_INT(0, 
         packet_build_tcp(&buffer[0], 256, &options[0]));
 }
 

@@ -59,11 +59,10 @@ generator_init(e_fuzz_mode_t mode);
 /**
  * @brief get the next tcp options value
  * @param[inout] tcp_options the tcp options array to write to
- * @param[inout] len the length option in the tcp options
  * @return 0 if no more cycles, 1 if more cycles
  */
 extern int
-generator_run_tcp(uint8_t *tcp_options, int8_t *len);
+generator_run_tcp(uint8_t *tcp_options);
 
 #endif /* GENERATOR_H */
 

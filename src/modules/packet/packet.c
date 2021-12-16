@@ -30,7 +30,9 @@
 #define PACKET_SUCCESS  0
 #define PACKET_FAILURE  -1
 
-#define PACKET_SIZE_TCP ( (uint32_t)sizeof(IP) + (uint32_t)sizeof(TCP) + 4 )
+/** @brief the size of a tcp packet excluding the option size 
+ */
+#define PACKET_SIZE_TCP ( (uint32_t)sizeof(IP) + (uint32_t)sizeof(TCP) )
 
 #define TCP_STANDARD_WINDOW_LEN 5840
 
@@ -85,8 +87,6 @@ ip_calculate_checksum(uint8_t *bytes, uint16_t len)
         sum += (uint16_t)(*(bytes+i) << 8 | *(bytes+i+1));
     }
 
-    printf("[DEBUG]: %04x\n", sum);
-
     /* in case len is odd, we need to add the odd byte */
     if(len % 2)
     {
@@ -109,10 +109,34 @@ int
 packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size, uint8_t *p_options)
 {
     assert(p_buffer != NULL);
-    assert(buffer_size >= PACKET_SIZE_TCP);
+
+    uint8_t bytes_padding = 0;
+    uint8_t options_length = *(p_options+1);
+
+    /* if the options do not align to 32-bit words and we 
+       have an options that does not have a length of one,
+       we need to add padding. how many bytes to pad with
+       is calculated here. */
+    if(options_length % 4 != 0 && options_length != 1) 
+    {
+        /* if the options length is not a multiple of 32-bit wordlength
+           then we have to pad with NOPs 
+           calculation is as follows:
+
+           residue classes:
+           [0]: 0,4,8,12,...
+           [1]: 1,5,9,...
+           [2]: 2,6,10,...
+           [3]: 3,7,11,...
+            
+           4 - [n] = number of bytes to pad
+        */
+        bytes_padding = (4 - options_length % 4);
+    }
 
     /* IP header, TCP header and TCP options */
-    const uint16_t TOTAL_PACKET_SIZE = (uint16_t)PACKET_SIZE_TCP;
+    const uint16_t TOTAL_PACKET_SIZE = 
+        (uint16_t)PACKET_SIZE_TCP + (uint16_t)options_length+(uint16_t)bytes_padding;
     /* TCP header and TCP options, without IP header */
     const uint16_t TCP_SIZE = htons((uint16_t)PACKET_SIZE_TCP - sizeof(IP));
     const uint16_t PSEUDO_HEADER_SIZE = PACKET_SIZE_TCP - sizeof(IP) + 12;
@@ -121,8 +145,7 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size, uint8_t *p_options)
        the entire TCP segment is appended to this */
     uint8_t pseudo_header[1024] = {0x00};
 
-    /* NOTE: either have this function memset the buffer 
-             or the caller */
+    assert(buffer_size >= TOTAL_PACKET_SIZE);
 
     IP *iphdr = (IP *)p_buffer;
     TCP *tcphdr = (TCP *)(p_buffer + sizeof(IP));
@@ -158,13 +181,28 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size, uint8_t *p_options)
     
     /* offset is measured in 32-bit words. the standard offset value
        is the header size. here, bytes/one word of options are added */
-    tcphdr->doff = ((sizeof(TCP)+4) / 4);
+    tcphdr->doff = ((sizeof(TCP)+(options_length+bytes_padding)) / 4);
 
+    /* if an option has length 1, we still need to add a word here. */
+    if(options_length == 1) 
+    {
+        tcphdr->doff++;
+    }
+
+    /* syn flag is always set */
     tcphdr->syn = 1;
 
     tcphdr->window = htons(5840);
 
-    memcpy(p_buffer+TOTAL_PACKET_SIZE-4, p_options, 4);
+    /* add the options here */
+    memcpy(p_buffer+TOTAL_PACKET_SIZE-options_length-bytes_padding, 
+        p_options, options_length);
+
+    /* if we have a padding, that is, a options size which does not align to
+       32-bits, we pad the rest with NOPs */
+    if(bytes_padding > 0) {
+        memset(p_buffer+TOTAL_PACKET_SIZE-bytes_padding, 0x01, bytes_padding);
+    }
 
     /* calculate checksum here. */
     tcphdr->check = 0;
@@ -183,7 +221,7 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size, uint8_t *p_options)
     tcphdr->check = ip_calculate_checksum(&pseudo_header[0], 
         PSEUDO_HEADER_SIZE);
 
-    return PACKET_SUCCESS;
+    return TOTAL_PACKET_SIZE;
 }
 
 

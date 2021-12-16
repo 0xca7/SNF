@@ -30,9 +30,9 @@
 static void 
 fuzz(void)
 {
+    int len = -1;
     uint8_t buffer[256] = { 0x00 };
-    uint8_t tcp_options[4] = { 0x00 };
-    int8_t len = 0;
+    uint8_t tcp_options[32] = { 0x00 };
 
     if(networking_init(IPPROTO_TCP) == -1)
     {
@@ -49,13 +49,18 @@ fuzz(void)
         return;
     }
 
-    while( generator_run_tcp(&tcp_options[0], &len) )
+    while( generator_run_tcp(&tcp_options[0]) )
     {
-        if(packet_build_tcp(&buffer[0], 256, &tcp_options[0]) == -1)
+        len = packet_build_tcp(&buffer[0], 256, &tcp_options[0]);
+        if(len == -1)
         {
             return;
         }
-        if(networking_send(&buffer[0], sizeof(buffer)) == -1) 
+        else
+        {
+            printf("sending %d bytes\n", len);
+        }
+        if(networking_send(&buffer[0], len) == -1) 
         {
             return;
         }   

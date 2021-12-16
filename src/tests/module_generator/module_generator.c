@@ -36,6 +36,7 @@ tearDown(void)
 /**********************************************************
  * Test Cases - Private Functions
  *********************************************************/
+
 /**
  * @brief test the cycle function
  */
@@ -44,16 +45,15 @@ test_generator_cycle_tcp_options()
 {
     int iter = 0;
     uint8_t buffer[256] = { 0x00 };
-    int8_t len = 0;
     
     while(iter != TCP_OPTS_NO_VALUES)
     {
         TEST_ASSERT_EQUAL_INT(GENERATOR_CYCLE_NOT_DONE,
-            generator_cycle_tcp_options(&buffer[0], &len));
+            generator_cycle_tcp_options(&buffer[0]));
         iter++;
     }
     TEST_ASSERT_EQUAL_INT(GENERATOR_CYCLE_DONE,
-        generator_cycle_tcp_options(&buffer[0], &len));
+        generator_cycle_tcp_options(&buffer[0]));
 }
 
 

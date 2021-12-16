@@ -31,14 +31,17 @@
 #define GENERATOR_SUCCESS  0
 #define GENERATOR_FAILURE  -1
 
-#define TCP_OPTS_NO_VALUES  42
-
 #define GENERATOR_CYCLE_NOT_DONE    1
 #define GENERATOR_CYCLE_DONE        0
 
-#define TCP_OPTION_LENGTH_NONE      -1
-#define TCP_OPTION_LENGTH_N         -2
-#define TCP_OPTION_LENGTH_VARIABLE  -3
+#define TCP_OPTS_NO_VALUES      14
+#define TCP_OPTIONS_KIND        0
+#define TCP_OPTIONS_LENGTH      1
+#define TCP_OPTIONS_MAX_VARLEN  2
+
+#define TCP_KIND_SACK 5
+#define TCP_KIND_TCP_FAST_OPEN_COOKIE 34
+#define TCP_KIND_TCP_ENCRYPTION_NEGOTIATION 69
 
 /***************************************************************************
  * TYPES / DATA STRUCTURES
@@ -54,26 +57,37 @@ static uint8_t g_cycle = 0;
 /** @brief current fuzzing mode to use */
 static e_fuzz_mode_t g_mode = FUZZ_MODE_INVALID;
 
-/** @brief possible TCP option values for KIND field */
-const uint8_t g_TCP_OPT_KIND[TCP_OPTS_NO_VALUES] = { 
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 
-    0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 
-    0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 
-    0x1e, 0x1f, 0x20, 0x21, 0x22, 0x45, 0x46, 0x4c, 0x4d, 0x4e, 
-    0xfd, 0xfe 
-};
+/* kind, length, max length if variable */
+const uint8_t g_TCP_OPTIONS[TCP_OPTS_NO_VALUES][3] = {
 
-/** @brief possible TCP option values for LEN field 
-    @note
-    -1: there is no value given in the documentation for the length
-        of this field
-    -2: the documentation says that the length is 'N'
-    -3: the documentation says the length is 'variable'
-*/
-const int8_t g_TCP_OPT_LEN[TCP_OPTS_NO_VALUES] = { 
-    0, 0, 4, 3, 2, -2, 6, 6, 10, 2, 3, -1, -1, -1, 3, -2, -1, -1, 3, 
-    18, -1, -1, -1, -1, -1, -1, -1, 8, 4, -1, -2, -1, -1, -1, -3, -2, 
-    -1, -1, -1, -1, -2, -2 
+    /* END_OF_OPTION_LIST */
+    { 0, 1, 0 },
+    /* NOP */
+    { 1, 1, 0 },
+    /* MSS */
+    { 2, 4, 0 },
+    /* WINDOW_SCALE */
+    { 3, 3, 0 },
+    /* SACK_PERMITTED */
+    { 4, 2, 0 },
+    /* SACK */
+    { 5, 10, 40 },
+    /* TIMESTAMPS */
+    { 8, 10, 0 },
+    /* TRAILER_CHKSM */
+    { 18, 3, 0 },
+    /* QUICK_START_RESPONSE */
+    { 27, 8, 0 },
+    /* USER_TIMEOUT */
+    { 28, 4, 0 },
+    /* TCP_AUTH */
+    { 29, 4, 0 },
+    /* TCP_MULTIPATH */
+    { 30, 4, 0 },
+    /* TCP_FAST_OPEN_COOKIE */
+    { 34, 4, 16 },
+    /* TCP_ENCRYPTION_NEGOTIATION */
+    { 69, 1, 40 }
 };
 
 /***************************************************************************
@@ -83,19 +97,17 @@ const int8_t g_TCP_OPT_LEN[TCP_OPTS_NO_VALUES] = {
 /**
  * @brief generates the next option fields for a fuzz packet
  * @param[inout] p_tcp_options the buffer to hold options
- * @param[out] p_length the length field of the packet
- *        use this to determine the number of bytes to send 
  * @return combinations are left: 1, done: 0, error: -1
  */
 static int
-generator_cycle_tcp_options(uint8_t *p_tcp_options, int8_t *p_length);
+generator_cycle_tcp_options(uint8_t *p_tcp_options);
 
 /***************************************************************************
  * PRIVATE FUNCTIONS
  **************************************************************************/
 
 static int
-generator_cycle_tcp_options(uint8_t *p_tcp_options, int8_t *p_length) 
+generator_cycle_tcp_options(uint8_t *p_tcp_options) 
 {
     /* 
         this function builds the next option array 
@@ -118,25 +130,48 @@ generator_cycle_tcp_options(uint8_t *p_tcp_options, int8_t *p_length)
         ret = GENERATOR_CYCLE_NOT_DONE;
 
         /* first byte is the kind */
-        *(p_tcp_options+0) = g_TCP_OPT_KIND[g_cycle];
+        *(p_tcp_options+0) = g_TCP_OPTIONS[g_cycle][TCP_OPTIONS_KIND];
 
-        switch(g_TCP_OPT_LEN[g_cycle])
+        /* then comes the length, if it is variable, choose a random value 
+           here, the length is the min value, where the MAX_VARLEN is the 
+           max value */
+        if(g_TCP_OPTIONS[g_cycle][TCP_OPTIONS_MAX_VARLEN] != 0) 
         {
-            case TCP_OPTION_LENGTH_NONE:
-                *(p_tcp_options+1) = 0;
-            break;
-            case TCP_OPTION_LENGTH_N:
-                *(p_tcp_options+1) = 0;     /* placeholder */
-            break;
-            case TCP_OPTION_LENGTH_VARIABLE:
-                *(p_tcp_options+1) = 0;     /* placeholder */
-            break;
-            default:
-                /* any other value than -1, -2, -3 */
-                *(p_tcp_options+1) = g_TCP_OPT_LEN[g_cycle];
-            break;
+            uint8_t rand = (uint8_t)util_prng_gen();
+            uint8_t max = g_TCP_OPTIONS[g_cycle][TCP_OPTIONS_MAX_VARLEN];
+            uint8_t min = g_TCP_OPTIONS[g_cycle][TCP_OPTIONS_LENGTH];
+            
+            /* lengths are not fully variable. this has to be refined. 
+               for instance, TCP SACKs come in 10 byte blocks and can
+               have a max of 4 blocks */
+
+            switch(g_TCP_OPTIONS[g_cycle][TCP_OPTIONS_KIND]) 
+            {
+                case TCP_KIND_SACK:
+                    /* there must be one block, max 4 blocks */
+                    rand = rand % 4 + 1;
+                    *(p_tcp_options+1) = 10 * rand;
+                break;
+                case TCP_KIND_TCP_FAST_OPEN_COOKIE:
+                    /* this is ok, between 4 and 16 bytes */
+                    *(p_tcp_options+1) = (rand % (max-min+1)) + min;
+                break;
+                case TCP_KIND_TCP_ENCRYPTION_NEGOTIATION:
+                    /* more information needed here */
+                    *(p_tcp_options+1) = (rand % (max-min+1)) + min;
+                break;
+                default:
+                    printf("[GENERATOR] ERROR invalid KIND value for length\n");
+                    *(p_tcp_options+1) = 0;
+                break;
+            }
+
         }
-        
+        else
+        {
+            *(p_tcp_options+1) = g_TCP_OPTIONS[g_cycle][TCP_OPTIONS_LENGTH];
+        }
+
         /* depending on the length value, fill the rest of the bytes */
         for(i = 0; i < *(p_tcp_options+1); i++)
         {
@@ -163,9 +198,9 @@ generator_init(e_fuzz_mode_t mode)
 }
 
 extern int
-generator_run_tcp(uint8_t *tcp_options, int8_t *len)
+generator_run_tcp(uint8_t *tcp_options)
 {
-    return generator_cycle_tcp_options(tcp_options, len);
+    return generator_cycle_tcp_options(tcp_options);
 }
 
 
