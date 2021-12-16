@@ -28,28 +28,32 @@
 /***************************************************************************
  * MACROS
  **************************************************************************/
-#define GENERATOR_SUCCESS  0
-#define GENERATOR_FAILURE  -1
+#define GENERATOR_SUCCESS                   0
+#define GENERATOR_FAILURE                   -1
 
-#define GENERATOR_CYCLE_NOT_DONE    1
-#define GENERATOR_CYCLE_DONE        0
+#define GENERATOR_CYCLE_NOT_DONE            1
+#define GENERATOR_CYCLE_DONE                0
 
-#define TCP_OPTS_NO_VALUES      14
-#define TCP_OPTIONS_KIND        0
-#define TCP_OPTIONS_LENGTH      1
-#define TCP_OPTIONS_MAX_VARLEN  2
+#define TCP_OPTS_NO_VALUES                  14
+#define TCP_OPTIONS_KIND                    0
+#define TCP_OPTIONS_LENGTH                  1
+#define TCP_OPTIONS_MAX_VARLEN              2
 
-#define TCP_KIND_SACK 5
-#define TCP_KIND_TCP_FAST_OPEN_COOKIE 34
+#define TCP_KIND_SACK                       5
+#define TCP_KIND_TCP_FAST_OPEN_COOKIE       34
 #define TCP_KIND_TCP_ENCRYPTION_NEGOTIATION 69
 
 /***************************************************************************
  * TYPES / DATA STRUCTURES
  **************************************************************************/
+typedef int (*gen_function_t)(uint8_t *);
 
 /***************************************************************************
  * GLOBALS
  **************************************************************************/
+
+/** @brief the function to use for generation of options */
+static gen_function_t g_generate = NULL;
 
 /** @brief the current cycle we are in */
 static uint8_t g_cycle = 0;
@@ -191,16 +195,36 @@ generator_cycle_tcp_options(uint8_t *p_tcp_options)
 extern int
 generator_init(e_fuzz_mode_t mode)
 {
+    int ret = GENERATOR_FAILURE;
     g_mode = mode;
     g_cycle = 0;
 
-    return 0;
+    switch(g_mode)
+    {
+        case FUZZ_MODE_TCP_OPTIONS:
+            g_generate = &generator_cycle_tcp_options;
+            ret = GENERATOR_SUCCESS;
+        break;
+        case FUZZ_MODE_IP_OPTIONS:
+            printf("[GENERATOR] IP Options Fuzzing - not implemented\n");
+        break;
+        default:
+            printf("[GENERATOR] INVALID MODE\n");
+        break;
+    }
+
+    return ret;
 }
 
 extern int
-generator_run_tcp(uint8_t *tcp_options)
+generator_run(uint8_t *options)
 {
-    return generator_cycle_tcp_options(tcp_options);
+    if(g_generate == NULL)
+    {
+        printf("[GENERATOR] null-pointer exception\n");
+        return GENERATOR_FAILURE;
+    }
+    return g_generate(&options[0]);
 }
 
 

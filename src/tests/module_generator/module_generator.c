@@ -68,9 +68,27 @@ test_generator_cycle_tcp_options()
 void
 test_generator_init()
 {
-    generator_init(FUZZ_MODE_IP_OPTIONS);
+    TEST_ASSERT_EQUAL_INT(-1,
+        generator_init(FUZZ_MODE_IP_OPTIONS));
     TEST_ASSERT_EQUAL_INT(FUZZ_MODE_IP_OPTIONS,
         g_mode);
+
+    TEST_ASSERT_EQUAL_INT(0,
+        generator_init(FUZZ_MODE_TCP_OPTIONS));
+    TEST_ASSERT_EQUAL_INT(FUZZ_MODE_TCP_OPTIONS,
+        g_mode);
+}
+
+/**
+ * @brief test the run function
+ */
+void
+test_generator_run()
+{
+    uint8_t options[4] = { 0x00 };
+    /* not initialized is invalid */
+    TEST_ASSERT_EQUAL_INT(-1,
+        generator_run(&options[0]));
 }
 
 /**********************************************************
@@ -82,6 +100,7 @@ main(void)
     UNITY_BEGIN();
     
     RUN_TEST(test_generator_init);
+    RUN_TEST(test_generator_run);
     RUN_TEST(test_generator_cycle_tcp_options);
 
     return UNITY_END();

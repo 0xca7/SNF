@@ -58,11 +58,13 @@ generator_init(e_fuzz_mode_t mode);
 
 /**
  * @brief get the next tcp options value
+ * @warning the caller must ensure that TCP options is large enough
+ *          to hold all options that can be generated!
  * @param[inout] tcp_options the tcp options array to write to
  * @return 0 if no more cycles, 1 if more cycles
  */
 extern int
-generator_run_tcp(uint8_t *tcp_options);
+generator_run(uint8_t *options);
 
 #endif /* GENERATOR_H */
 

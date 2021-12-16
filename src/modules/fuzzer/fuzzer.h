@@ -61,7 +61,7 @@ typedef struct {
 
 /**
  * @brief generates a new fuzz configuration 
- * @param[in] mode the fuzzer's modea
+ * @param[in] mode the fuzzer's mode
  * @param[in] ifname the interface to use for fuzzing
  * @param[in] target_ip the target's ip address as string
  * @param[in] target_port the target port 
