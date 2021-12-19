@@ -196,8 +196,11 @@ extern int
 generator_init(e_fuzz_mode_t mode)
 {
     int ret = GENERATOR_FAILURE;
-    g_mode = mode;
+
     g_cycle = 0;
+    g_mode = mode;
+    
+    printf("%d %d\n", g_mode, mode);
 
     switch(g_mode)
     {

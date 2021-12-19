@@ -20,13 +20,11 @@
  * LIBRARIES
  **************************************************************************/
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 
 #include <global_cfg.h>
-#include <generator.h>
-#include <packet.h>
-#include <networking.h>
-
+#include <fuzzer.h>
 
 /***************************************************************************
  * FUNCTION PROTOTYPES
@@ -48,52 +46,13 @@ banner(void);
 static void
 usage(void);
 
-static void 
-fuzz(void)
-{
-    int len = -1;
-    uint8_t buffer[256] = { 0x00 };
-    uint8_t tcp_options[32] = { 0x00 };
-
-    if(networking_init(IPPROTO_TCP) == -1)
-    {
-        return;
-    }
-
-    if(util_prng_init() == -1)
-    {
-        return;
-    }
-
-    if(generator_init(FUZZ_MODE_TCP_OPTIONS) == -1)
-    {
-        return;
-    }
-
-    while( generator_run(&tcp_options[0]) )
-    {
-        len = packet_build_tcp(&buffer[0], 256, &tcp_options[0]);
-        if(len == -1)
-        {
-            return;
-        }
-        else
-        {
-            printf("sending %d bytes\n", len);
-        }
-        if(networking_send(&buffer[0], len) == -1) 
-        {
-            return;
-        }   
-        memset(buffer, 0, 256);
-    }
-
-    if(networking_deinit() == -1)
-    {
-        return;
-    }
-
-}
+/**
+ * @brief get fuzz mode from user input
+ * @param mode number entered by user
+ * @return the fuzzing mode or FUZZ_MODE_INVALID on failure
+ */
+static e_fuzz_mode_t 
+get_mode(int mode);
 
 /***************************************************************************
  * MAIN
@@ -101,6 +60,8 @@ fuzz(void)
 int
 main(int argc, char *argv[])
 {
+    int ret = -1;
+    int i = 0;
     int option_index = 0;
     bool incorrect_option = false;
     char *mode = NULL;
@@ -109,6 +70,7 @@ main(int argc, char *argv[])
     char *ifname = NULL;
 
     long int port = 0;
+    long int fuzz_mode = -1;
     char *endptr = NULL;
 
     banner();
@@ -177,12 +139,63 @@ main(int argc, char *argv[])
         exit(1);
     }
 
+    fuzz_mode = strtol(mode, &endptr, 10);
+    if(endptr == mode || errno != 0)
+    {
+        printf("[!!] invalid port\n");
+        exit(1);
+    }
+    
+    if(fuzz_mode > 2 || fuzz_mode < 0)
+    {
+        printf("[!!] invalid mode\n");
+        exit(1);
+    }
+
     printf("[*] configuration\n");
     printf("[+] target: %s:%s\n", target_ip, target_port);
     printf("[+] ifname: %s\n", ifname);
     printf("[+] mode:   %s\n\n", mode);
 
-    fuzz();
+    fuzz_config_t *config = fuzzer_new(
+        get_mode(fuzz_mode), ifname, target_ip, (uint16_t)port
+    );
+
+    if(config == NULL)
+    {
+        printf("[!!] invalid fuzzing config, aborting.\n");
+        return EXIT_FAILURE;
+    }
+
+    ret = fuzzer_init(config);
+    if(ret == -1)
+    {
+        exit(1);
+    }
+
+    fuzzer_print_config(config);
+    
+    printf("fuzzing in... ");
+    for(i = 3; i > 0; i--)
+    {
+        printf("%d ", i);
+        fflush(stdout);
+        sleep(1);
+    }
+    printf("\n\n");
+    
+    ret = fuzzer_run();
+    if(ret == -1)
+    {
+        printf("[!!] failed to run fuzzer\n");
+        /* don't exit, deinit first, to free memory of config */
+    }
+
+    ret = fuzzer_deinit(config);
+    if(ret == -1)
+    {
+        exit(1);
+    }
 
     return EXIT_SUCCESS;
 }
@@ -209,11 +222,28 @@ usage(void)
     printf("[+] -p  target port\n");
     printf("[+] -i  network interface\n");
     printf("[+] -m  mode\n");
-    printf("        | 0   TCP options\n");
-    printf("        | 1   IP options\n");
+    printf("        | 0   IP options\n");
+    printf("        | 1   TCP options\n");
     printf("\n\n");
 
     exit(1);
 }
 
 
+static e_fuzz_mode_t 
+get_mode(int mode)
+{
+    int fuzz_modes[3] = {
+        FUZZ_MODE_IP_OPTIONS,
+        FUZZ_MODE_TCP_OPTIONS,
+        FUZZ_MODE_INVALID
+    };
+    
+    if(mode >= 0 && mode < 2)
+    {
+        return fuzz_modes[mode];
+    }
+
+    /* invalid */
+    return fuzz_modes[2];
+}

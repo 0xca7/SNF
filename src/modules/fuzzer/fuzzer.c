@@ -31,6 +31,9 @@
 #define FUZZER_SUCCESS  0
 #define FUZZER_FAILURE  -1
 
+#define OPT_BUFFER_SIZE  32
+#define SEND_BUFFER_SIZE 256
+
 #define MODE_STRING_IP_OPTIONS  "IP Options Fuzzing"
 #define MODE_STRING_TCP_OPTIONS "TCP Options Fuzzing"
 #define MODE_STRING_INVALID     "Invalid Mode"
@@ -42,6 +45,7 @@
 /***************************************************************************
  * GLOBALS
  **************************************************************************/
+static bool g_initialized = false;
 
 /***************************************************************************
  * PRIVATE FUNCTION PROTOTYPES
@@ -56,6 +60,14 @@ static int
 fuzzer_check_mode(e_fuzz_mode_t mode);
 
 /**
+ * @brief get the protocol number for networking setup
+ * @param[in] mode the mode to run the fuzzer in
+ * @return protocol number, -1 on failure
+ */
+static int
+fuzzer_get_proto(e_fuzz_mode_t mode);
+
+/**
  * @brief this function checks if the target IP is valid and converts it
  *        to a struct in_addr  
  * @param[in] ip the ip as a string (15 bytes)
@@ -67,7 +79,7 @@ fuzzer_convert_ip(const char ip[15], struct in_addr *ip_addr);
 
 /**
  * @brief get the mode as an ASCII string for printing
- * @param mode the fuzzer mode
+ * @param[in] mode the fuzzer mode
  * @return returns a string describing the mode
  */
 static char*
@@ -90,6 +102,27 @@ fuzzer_check_mode(e_fuzz_mode_t mode)
             ret = FUZZER_SUCCESS;
             break;
         }
+    }
+
+    return ret;
+}
+
+static int
+fuzzer_get_proto(e_fuzz_mode_t mode)
+{
+    int ret = FUZZER_FAILURE;
+
+    switch(mode)
+    {
+        case FUZZ_MODE_TCP_OPTIONS:
+            ret = IPPROTO_TCP;
+        break;
+        case FUZZ_MODE_IP_OPTIONS:
+            printf("[FUZZER] IP options fuzzing not implemented\n");
+        break;
+        default:
+            printf("[FUZZER] invalid protocol\n");
+        break;
     }
 
     return ret;
@@ -211,20 +244,94 @@ fuzzer_init(fuzz_config_t *config)
 {
     assert(config != NULL);
 
-    int ret = FUZZER_SUCCESS;
+    int ret = FUZZER_FAILURE;
 
+    ret = networking_init(fuzzer_get_proto(config->mode));
+    if(ret == -1)
+    {
+        goto FUZZER_INIT_FAILURE;
+    }
+
+    ret = util_prng_init();
+    if(ret == -1)
+    {
+        goto FUZZER_INIT_FAILURE;
+    }
+
+    ret = generator_init(config->mode);
+    if(ret == -1)
+    {
+        goto FUZZER_INIT_FAILURE;
+    }
+
+    g_initialized = true;
+    ret = FUZZER_SUCCESS;
+
+FUZZER_INIT_FAILURE:
     return ret;
 }
+
+int
+fuzzer_run(void)
+{
+    int ret = FUZZER_SUCCESS;
+
+    uint64_t iterations = 0;
+    int len = -1;
+    uint8_t buffer[SEND_BUFFER_SIZE] = { 0x00 };
+    uint8_t tcp_options[OPT_BUFFER_SIZE] = { 0x00 };
+   
+    if(!g_initialized)
+    {
+        ret = FUZZER_FAILURE;
+        return ret;
+    }
+
+    while( generator_run(&tcp_options[0]) )
+    {
+        len = packet_build_tcp(&buffer[0], SEND_BUFFER_SIZE, &tcp_options[0]);
+        if(len == -1)
+        {
+            printf("[FUZZER ERROR] - failed to build packet\n");
+            ret = FUZZER_FAILURE;
+            break;
+        }
+        else
+        {
+            iterations++;
+            printf("[iteration %ld] sending %d bytes\n", iterations, len);
+        }
+        if(networking_send(&buffer[0], len) == -1) 
+        {
+            printf("[FUZZER ERROR] - failed to send packet\n");
+            ret = FUZZER_FAILURE;
+            break;
+        }   
+        memset(buffer, 0, SEND_BUFFER_SIZE);
+    } /* while */
+    
+    iterations = 0;
+    return ret;
+}
+
 
 int 
 fuzzer_deinit(fuzz_config_t *config)
 {
     assert(config != NULL);
 
+    int ret = FUZZER_SUCCESS;
+
+    ret = networking_deinit();
+    if(ret == -1)
+    {
+        printf("[FUZZER] networking deinit failed\n");
+    }
+
     free(config);
     config = NULL;
 
-    return FUZZER_SUCCESS;
+    return ret;
 }
 
 void

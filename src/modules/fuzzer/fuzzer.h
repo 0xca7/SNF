@@ -1,12 +1,12 @@
 /** @file fuzzer.h
  * 
- * @brief A description of the module’s purpose. 
- * 
+ * @brief builds packets, sends them via the network and receives
+ *        a response from the target. the main fuzzing component.
  */ 
 
 /**
  * Author:  0xca7
- * Desc:    this is a template header
+ * Desc:    the main fuzzing component 
  *
  */
 
@@ -30,6 +30,9 @@
 #include <assert.h>
 
 #include <global_cfg.h>
+#include <networking.h>
+#include <generator.h>
+#include <packet.h>
 #include <util.h>
 
 /***************************************************************************
@@ -83,6 +86,14 @@ extern int fuzzer_init(fuzz_config_t *config);
  * @return -1 on failure, 0 on success
  */
 extern int fuzzer_deinit(fuzz_config_t *config);
+
+/**
+ * @brief the main fuzzing loop 
+ * @param void
+ * @return -1 on failure, 0 on success
+ */
+extern int
+fuzzer_run(void);
 
 /**
  * @brief print a fuzzing configuration
