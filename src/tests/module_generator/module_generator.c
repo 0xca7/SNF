@@ -45,15 +45,16 @@ test_generator_cycle_tcp_options()
 {
     int iter = 0;
     uint8_t buffer[256] = { 0x00 };
+    uint8_t buffer_length = 0;
     
     while(iter != TCP_OPTS_NO_VALUES)
     {
         TEST_ASSERT_EQUAL_INT(GENERATOR_CYCLE_NOT_DONE,
-            generator_cycle_tcp_options(&buffer[0]));
+            generator_cycle_tcp_options(&buffer[0], &buffer_length));
         iter++;
     }
     TEST_ASSERT_EQUAL_INT(GENERATOR_CYCLE_DONE,
-        generator_cycle_tcp_options(&buffer[0]));
+        generator_cycle_tcp_options(&buffer[0], &buffer_length));
 }
 
 
@@ -86,9 +87,11 @@ void
 test_generator_run()
 {
     uint8_t options[4] = { 0x00 };
+    uint8_t options_length = 0;
+
     /* not initialized is invalid */
     TEST_ASSERT_EQUAL_INT(-1,
-        generator_run(&options[0]));
+        generator_run(&options[0], &options_length));
 }
 
 /**********************************************************

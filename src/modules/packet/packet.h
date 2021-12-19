@@ -62,10 +62,12 @@
  * @param[inout] buffer stores the assembles TCP packet
  * @param[in] buffer_size size of the buffer param in bytes
  * @param[in] p_options the TCP options to add to the packet
+ * @param[in] options_length the total length of options (incl. padding)
  * @return -1 on failure, total packet length in bytes on success
  */
 extern int 
-packet_build_tcp(uint8_t *buffer, uint32_t buffer_size, uint8_t *p_options);
+packet_build_tcp(uint8_t *buffer, uint32_t buffer_size, 
+    uint8_t *p_options, uint8_t options_length);
 
 
 #endif /* PACKET_H */

@@ -74,6 +74,7 @@ test_networking_send(void)
 {
     uint8_t packet[256] = { 0x00 };
     uint8_t options[4] = { 0x02, 0x04, 0xde, 0xad };
+    uint8_t options_length = 4;
 
     TEST_ASSERT_EQUAL_INT(0,
         networking_init(IPPROTO_TCP));
@@ -85,7 +86,8 @@ test_networking_send(void)
     }
     
     /* correctness is tested in seperate unit test */
-    if(packet_build_tcp(&packet[0], 256, &options[0]) == -1) 
+    if(packet_build_tcp(&packet[0], 256, 
+        &options[0], options_length) == -1) 
     {
         printf("[TEST WARNING] building tcp packet failed\n");
     }

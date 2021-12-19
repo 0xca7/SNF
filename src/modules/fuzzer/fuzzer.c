@@ -280,6 +280,7 @@ fuzzer_run(void)
     int len = -1;
     uint8_t buffer[SEND_BUFFER_SIZE] = { 0x00 };
     uint8_t tcp_options[OPT_BUFFER_SIZE] = { 0x00 };
+    uint8_t tcp_options_length = 0;
    
     if(!g_initialized)
     {
@@ -287,9 +288,10 @@ fuzzer_run(void)
         return ret;
     }
 
-    while( generator_run(&tcp_options[0]) )
+    while( generator_run(&tcp_options[0], &tcp_options_length) )
     {
-        len = packet_build_tcp(&buffer[0], SEND_BUFFER_SIZE, &tcp_options[0]);
+        len = packet_build_tcp(&buffer[0], SEND_BUFFER_SIZE, 
+            &tcp_options[0], tcp_options_length);
         if(len == -1)
         {
             printf("[FUZZER ERROR] - failed to build packet\n");
