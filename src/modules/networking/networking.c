@@ -123,7 +123,7 @@ networking_init(int protocol)
 }
 
 int
-networking_send(uint8_t *buffer, uint32_t buffer_size) 
+networking_send(uint8_t *buffer, uint32_t buffer_size, in_addr_t src) 
 {
     assert(g_initialized);
 
@@ -131,7 +131,7 @@ networking_send(uint8_t *buffer, uint32_t buffer_size)
     struct sockaddr_in source = {0};
     
     source.sin_family = AF_INET;
-    source.sin_addr.s_addr = inet_addr("127.0.0.1");
+    source.sin_addr.s_addr = src;
 
     ret = sendto(g_sockfd, buffer, buffer_size, 0, (struct sockaddr *)&source, sizeof(source));
 

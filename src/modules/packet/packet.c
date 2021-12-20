@@ -107,16 +107,20 @@ ip_calculate_checksum(uint8_t *bytes, uint16_t len)
  **************************************************************************/
 int 
 packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size, 
-    uint8_t *p_options, uint8_t options_length)
+    uint8_t *p_options, uint8_t options_length,
+    in_addr_t src, in_addr_t dst, uint16_t port)
 {
     assert(p_buffer != NULL);
+
+    int i = 0;
+    int linebreak = 0;
 
     const uint16_t TOTAL_PACKET_SIZE = 
         (uint16_t)PACKET_SIZE_TCP + (uint16_t)options_length;
 
     /* TCP header and TCP options, without IP header */
     const uint16_t TCP_SIZE = htons((uint16_t)PACKET_SIZE_TCP - sizeof(IP));
-    const uint16_t PSEUDO_HEADER_SIZE = PACKET_SIZE_TCP - sizeof(IP) + 12;
+    const uint16_t PSEUDO_HEADER_SIZE = sizeof(TCP) + options_length + 12;
 
     /* the 12-byte pseudo header for TCP checksum calculation 
        the entire TCP segment is appended to this */
@@ -132,12 +136,13 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
     iphdr->ihl = 5;
 
     /* octet 2: DSCP and ECN are missing */
+    iphdr->tos = 0;
 
     iphdr->id = (uint16_t)((util_prng_gen() & 0xffff) + 1);
 
     /* this value is not passed in, but retreived in init function */
-    iphdr->saddr = inet_addr("127.0.0.1");
-    iphdr->daddr = inet_addr("127.0.0.1");
+    iphdr->saddr = src;
+    iphdr->daddr = dst;
 
     iphdr->protocol = IPPROTO_TCP;
     iphdr->ttl = 255;
@@ -146,13 +151,13 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
     iphdr->check = 0;
     iphdr->check = ip_calculate_checksum(&p_buffer[0], sizeof(IP));
 
-    iphdr->tot_len = TOTAL_PACKET_SIZE;
+    iphdr->tot_len = htons(TOTAL_PACKET_SIZE);
     
     /* build the TCP header */
     /* NOTE: this value is random */
     tcphdr->source = (uint16_t)((util_prng_gen() & 0xffff) + 1);
 
-    tcphdr->dest = htons(0x15b3);
+    tcphdr->dest = htons(port);
     tcphdr->seq = (uint32_t)((util_prng_gen() & 0xffff) + 1);
     tcphdr->ack_seq = 0;
     
@@ -178,13 +183,27 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
     memcpy(pseudo_header+0, (uint8_t*)&iphdr->saddr, 4);
     memcpy(pseudo_header+4, (uint8_t*)&iphdr->daddr, 4);
     /* zero byte skipped, already initialized to zero */
-    memcpy(pseudo_header+9, (uint8_t*)&iphdr->protocol, 1);
-    memcpy(pseudo_header+10, (uint8_t*)&TCP_SIZE, 2);
+    *(pseudo_header+9) = IPPROTO_TCP;
+    *((uint16_t*)(pseudo_header+10)) = htons(TOTAL_PACKET_SIZE-sizeof(IP));
     /* add full TCP segment */
-    memcpy(pseudo_header+12, p_buffer+sizeof(IP), htons(TCP_SIZE));
+    memcpy(pseudo_header+12, p_buffer+sizeof(IP), TOTAL_PACKET_SIZE-sizeof(IP));
 
-    tcphdr->check = ip_calculate_checksum(&pseudo_header[0], 
-        PSEUDO_HEADER_SIZE);
+    tcphdr->check = htons(ip_calculate_checksum(&pseudo_header[0], 
+        PSEUDO_HEADER_SIZE));
+
+    printf("\npacket:\n");
+    for(i = 0; i < TOTAL_PACKET_SIZE; i++)
+    {
+        printf("%02x ", *(p_buffer+i));
+        linebreak++;
+        if(linebreak == 16) 
+        {
+            linebreak = 0;
+            printf("\n");
+        }
+
+    }
+    printf("\n");
 
     return TOTAL_PACKET_SIZE;
 }

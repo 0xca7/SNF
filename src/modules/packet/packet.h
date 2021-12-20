@@ -63,11 +63,15 @@
  * @param[in] buffer_size size of the buffer param in bytes
  * @param[in] p_options the TCP options to add to the packet
  * @param[in] options_length the total length of options (incl. padding)
+ * @param[in] src an in_addr_t, the source IP
+ * @param[in] dst an in_addr_t, the destination IP
+ * @param[in] port the destination port
  * @return -1 on failure, total packet length in bytes on success
  */
 extern int 
 packet_build_tcp(uint8_t *buffer, uint32_t buffer_size, 
-    uint8_t *p_options, uint8_t options_length);
+    uint8_t *p_options, uint8_t options_length,
+    in_addr_t src, in_addr_t dst, uint16_t port);
 
 
 #endif /* PACKET_H */

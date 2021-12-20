@@ -87,13 +87,15 @@ test_networking_send(void)
     
     /* correctness is tested in seperate unit test */
     if(packet_build_tcp(&packet[0], 256, 
-        &options[0], options_length) == -1) 
+        &options[0], options_length,
+        inet_addr("127.0.0.1"), inet_addr("127.0.0.1"), 
+        5555) == -1) 
     {
         printf("[TEST WARNING] building tcp packet failed\n");
     }
     
     TEST_ASSERT_EQUAL_INT(0,
-        networking_send(&packet[0], 44));
+        networking_send(&packet[0], 44, inet_addr("127.0.0.1")));
 
     TEST_ASSERT_EQUAL_INT(0,
         networking_deinit());

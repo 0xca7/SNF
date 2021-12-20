@@ -90,11 +90,11 @@ extern int fuzzer_deinit(fuzz_config_t *config);
 
 /**
  * @brief the main fuzzing loop 
- * @param void
+ * @param p_config an initialized fuzz configuration
  * @return -1 on failure, 0 on success
  */
 extern int
-fuzzer_run(void);
+fuzzer_run(fuzz_config_t *p_config);
 
 /**
  * @brief print a fuzzing configuration

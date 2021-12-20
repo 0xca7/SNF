@@ -74,7 +74,9 @@ test_packet_build_tcp(void) {
     util_prng_init();
     TEST_ASSERT_GREATER_THAN_INT(0, 
         packet_build_tcp(&buffer[0], 256, 
-            &options[0], options_length));
+            &options[0], options_length,
+            inet_addr("127.0.0.1"), inet_addr("127.0.0.1"),
+            5555));
 }
 
 /**********************************************************

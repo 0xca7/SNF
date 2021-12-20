@@ -184,7 +184,7 @@ main(int argc, char *argv[])
     }
     printf("\n\n");
     
-    ret = fuzzer_run();
+    ret = fuzzer_run(config);
     if(ret == -1)
     {
         printf("[!!] failed to run fuzzer\n");

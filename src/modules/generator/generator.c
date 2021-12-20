@@ -52,10 +52,10 @@
 #define TCP_OPTIONS_MAX_VARLEN              2
 
 /** @brief number of packets to generate in fuzz iterations */
-#define TCP_INVALID_COUNT                   5000
+#define TCP_INVALID_COUNT                   10000
 
 /** @brief the number of different mutations for TCP options */
-#define TCP_NO_MUTATIONS                    5
+#define TCP_NO_MUTATIONS                    2
 
 #define TCP_KIND_SACK                       5
 #define TCP_KIND_TCP_FAST_OPEN_COOKIE       34
@@ -370,7 +370,7 @@ tcp_cycle_invalid_length(uint8_t *p_tcp_options, uint8_t *p_total_length)
         *(p_tcp_options+1) = rand;
 
         /* fill in a random number of bytes for the "payload" */
-        rand = (uint8_t)util_prng_gen() % 40 + 1;
+        //rand = (uint8_t)util_prng_gen() % 40 + 1;
         for(i = 0; i < rand; i++)
         {
             *(p_tcp_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
@@ -513,9 +513,8 @@ generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length)
     gen_function_t tcp_mutations[TCP_NO_MUTATIONS] = {
         &tcp_cycle_valid,
         &tcp_cycle_random_length,
-        &tcp_cycle_invalid_length,
-        &tcp_cycle_invalid_padding,
-        &tcp_cycle_invalid
+        //&tcp_cycle_invalid_length,
+        //&tcp_cycle_invalid_padding,
     };
 
     gen_function_t mut = tcp_mutations[g_current_mutation];

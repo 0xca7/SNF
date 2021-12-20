@@ -271,7 +271,7 @@ FUZZER_INIT_FAILURE:
 }
 
 int
-fuzzer_run(void)
+fuzzer_run(fuzz_config_t *p_config)
 {
     int ret = FUZZER_SUCCESS;
 
@@ -280,6 +280,8 @@ fuzzer_run(void)
     uint8_t buffer[SEND_BUFFER_SIZE] = { 0x00 };
     uint8_t tcp_options[OPT_BUFFER_SIZE] = { 0x00 };
     uint8_t tcp_options_length = 0;
+
+    assert(p_config != NULL);
    
     if(!g_initialized)
     {
@@ -290,7 +292,9 @@ fuzzer_run(void)
     while( generator_run(&tcp_options[0], &tcp_options_length) )
     {
         len = packet_build_tcp(&buffer[0], SEND_BUFFER_SIZE, 
-            &tcp_options[0], tcp_options_length);
+            &tcp_options[0], tcp_options_length,
+            p_config->src_ip.s_addr, p_config->target_ip.s_addr, 
+            p_config->target_port);
         if(len == -1)
         {
             printf("[FUZZER ERROR] - failed to build packet\n");
@@ -302,7 +306,7 @@ fuzzer_run(void)
             iterations++;
             printf("[iteration %ld] sending %d bytes\n", iterations, len);
         }
-        if(networking_send(&buffer[0], len) == -1) 
+        if(networking_send(&buffer[0], len, p_config->target_ip.s_addr) == -1) 
         {
             printf("[FUZZER ERROR] - failed to send packet\n");
             ret = FUZZER_FAILURE;

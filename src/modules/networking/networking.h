@@ -65,10 +65,11 @@ networking_init(int protocol);
  * @brief send data via initialized networking module
  * @param buffer the buffer to send
  * @param buffer_size the size of the buffer / bytes in buffer
+ * @param src the source address as a be32 
  * @return -1 on failure, 0 on success
  */
 extern int 
-networking_send(uint8_t *buffer, uint32_t buffer_size);
+networking_send(uint8_t *buffer, uint32_t buffer_size, in_addr_t src);
 
 /**
  * @brief de-initializes the networking functionality 
