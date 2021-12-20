@@ -22,8 +22,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-
-#include "fuzzer.h"
+#include <fuzzer.h>
 
 /***************************************************************************
  * MACROS
@@ -309,6 +308,8 @@ fuzzer_run(void)
             ret = FUZZER_FAILURE;
             break;
         }   
+        /* don't DOS */
+        usleep(50);
         memset(buffer, 0, SEND_BUFFER_SIZE);
     } /* while */
     

@@ -152,17 +152,17 @@ networking_deinit(void)
 {
     int ret = NETWORKING_FAILURE;
 
-    assert(g_initialized);
-
-    if(close(g_sockfd) == -1)
-    {
-        printf("[NETWORKING] (close) %s\n", strerror(errno));
-    }
-    else 
-    {
-        g_sockfd = -1;
-        g_initialized = false;
-        ret = NETWORKING_SUCCESS;
+    if(g_initialized) {
+        if(close(g_sockfd) == -1)
+        {
+            printf("[NETWORKING] (close) %s\n", strerror(errno));
+        }
+        else 
+        {
+            g_sockfd = -1;
+            g_initialized = false;
+            ret = NETWORKING_SUCCESS;
+        }
     }
 
     return ret;

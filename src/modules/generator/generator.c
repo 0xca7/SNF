@@ -51,6 +51,12 @@
 #define TCP_OPTIONS_LENGTH                  1
 #define TCP_OPTIONS_MAX_VARLEN              2
 
+/** @brief number of packets to generate in fuzz iterations */
+#define TCP_INVALID_COUNT                   5000
+
+/** @brief the number of different mutations for TCP options */
+#define TCP_NO_MUTATIONS                    5
+
 #define TCP_KIND_SACK                       5
 #define TCP_KIND_TCP_FAST_OPEN_COOKIE       34
 #define TCP_KIND_TCP_ENCRYPTION_NEGOTIATION 69
@@ -62,18 +68,6 @@
     */
 typedef int (*gen_function_t)(uint8_t *, uint8_t *);
 
-/** @brief the cycle tcp options fuzzing is in at the moment */
-typedef enum 
-{
-    CYCLE_VALID,             /* all parts are valid */
-    CYCLE_INVALID_OPTION,    /* option value is random */
-    CYCLE_INVALID_LENGTH,    /* length and option values are random */
-    CYCLE_INVALID_KIND,      /* kind value is random, length is ok */
-    CYCLE_INVALID_ALL,       /* all values are random */
-} 
-e_TCP_OPT_CYCLE_t;
-
-
 /***************************************************************************
  * GLOBALS
  **************************************************************************/
@@ -82,10 +76,12 @@ e_TCP_OPT_CYCLE_t;
 static gen_function_t g_generate = NULL;
 
 /** @brief the current cycle we are in */
-static uint8_t g_cycle = 0;
+static uint64_t g_cycle = 0;
 
 /** @brief current fuzzing mode to use */
 static e_fuzz_mode_t g_mode = FUZZ_MODE_INVALID;
+
+static uint8_t g_current_mutation = 0;
 
 /* kind, length, max length if variable */
 const uint8_t g_TCP_OPTIONS[TCP_OPTS_NO_VALUES][3] = {
@@ -125,20 +121,56 @@ const uint8_t g_TCP_OPTIONS[TCP_OPTS_NO_VALUES][3] = {
  **************************************************************************/
 
 /**
+ * @brief generates valid kind and length options
+ * @param[inout] p_tcp_options holds the generated options
+ * @param[inout] p_total_length the total length of the options inc. padding
+ * @return 1 if combinations are left, 0 if none are left, -1 on error
+ */
+static int
+tcp_cycle_valid(uint8_t *p_tcp_options, uint8_t *p_total_length);
+
+/**
+ * @brief generates valid kind and random length options
+ * @param[inout] p_tcp_options holds the generated options
+ * @param[inout] p_total_length the total length of the options inc. padding
+ * @return 1 if combinations are left, 0 if none are left, -1 on error
+ */
+static int
+tcp_cycle_random_length(uint8_t *p_tcp_options, uint8_t *p_total_length);
+
+/**
+ * @brief generates valid kind and length of payload is not length
+ * @param[inout] p_tcp_options holds the generated options
+ * @param[inout] p_total_length the total length of the options inc. padding
+ * @return 1 if combinations are left, 0 if none are left, -1 on error
+ */
+static int
+tcp_cycle_invalid_length(uint8_t *p_tcp_options, uint8_t *p_total_length);
+
+/**
+ * @brief generates valid kind length and payload random, invalid padding
+ * @param[inout] p_tcp_options holds the generated options
+ * @param[inout] p_total_length the total length of the options inc. padding
+ * @return 1 if combinations are left, 0 if none are left, -1 on error
+ */
+static int
+tcp_cycle_invalid_padding(uint8_t *p_tcp_options, uint8_t *p_total_length);
+
+/**
  * @brief generates the next option fields for a fuzz packet
  * @param[inout] p_tcp_options the buffer to hold options
  * @param[inout] p_total_length options + padding length
  * @return combinations are left: 1, done: 0, error: -1
  */
 static int
-generator_cycle_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length);
+generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length);
 
 /***************************************************************************
  * PRIVATE FUNCTIONS
  **************************************************************************/
 
 static int
-generator_cycle_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length) 
+tcp_cycle_valid(uint8_t *p_tcp_options, uint8_t *p_total_length) 
 {
     /* 
         this function builds the next option array 
@@ -239,6 +271,275 @@ generator_cycle_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length)
     return ret;
 }
 
+static int
+tcp_cycle_random_length(uint8_t *p_tcp_options, uint8_t *p_total_length)
+{
+    /* 
+        this function builds the next option array 
+        if there are no more combinations left, this
+        shall return 0. In case an option was selected,
+        return 1. On error, return -1.
+    */
+
+    int i = 0;
+    uint8_t ret = GENERATOR_CYCLE_DONE;
+    int padding = 0;
+    uint8_t rand = 0;
+
+    /* all cycles are complete */
+    if(g_cycle == TCP_INVALID_COUNT)
+    {
+        g_cycle = 0;
+    }
+    else
+    {
+        /* if there are still cycles to fuzz */
+        ret = GENERATOR_CYCLE_NOT_DONE;
+
+        /* get a random kind */
+        rand = (uint8_t)util_prng_gen() % TCP_OPTS_NO_VALUES;
+        *(p_tcp_options+0) = g_TCP_OPTIONS[rand][TCP_OPTIONS_KIND];
+
+        /* get a random length. a valid tcp header has a max of 
+           60 bytes WITH options. a tcp header without options is 
+           20 bytes, thus a max. of 40 bytes can be added. we need
+           at least 1 byte of options which are then padded. */
+        rand = (uint8_t)util_prng_gen() % 40 + 1;
+        *(p_tcp_options+1) = rand;
+
+        /* depending on the length value, fill the rest of the bytes */
+        for(i = 0; i < *(p_tcp_options+1); i++)
+        {
+            *(p_tcp_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
+        }
+
+        /* if the options length is not a multiple of 32-bit wordlength
+           then we have to pad with NOPs.
+        */
+        if(*(p_tcp_options+1) % 4 != 0)
+        {
+            padding = 4 - *(p_tcp_options+1) % 4;
+
+            if(padding > 0) {
+                memset(p_tcp_options+(*(p_tcp_options+1)), 0x01, padding);
+            }
+        }
+
+        *p_total_length = *(p_tcp_options+1) + padding;
+
+        g_cycle++;
+    }
+
+    return ret;
+}
+
+static int
+tcp_cycle_invalid_length(uint8_t *p_tcp_options, uint8_t *p_total_length)
+{
+    /* 
+        this function builds the next option array 
+        if there are no more combinations left, this
+        shall return 0. In case an option was selected,
+        return 1. On error, return -1.
+    */
+
+    int i = 0;
+    uint8_t ret = GENERATOR_CYCLE_DONE;
+    int padding = 0;
+    uint8_t rand = 0;
+
+    /* all cycles are complete */
+    if(g_cycle == TCP_INVALID_COUNT)
+    {
+        g_cycle = 0;
+    }
+    else
+    {
+        /* if there are still cycles to fuzz */
+        ret = GENERATOR_CYCLE_NOT_DONE;
+
+        /* get a random kind */
+        rand = (uint8_t)util_prng_gen() % TCP_OPTS_NO_VALUES;
+        *(p_tcp_options+0) = g_TCP_OPTIONS[rand][TCP_OPTIONS_KIND];
+
+        /* get a random length. a valid tcp header has a max of 
+           60 bytes WITH options. a tcp header without options is 
+           20 bytes, thus a max. of 40 bytes can be added. we need
+           at least 1 byte of options which are then padded. */
+        rand = (uint8_t)util_prng_gen() % 40 + 1;
+        *(p_tcp_options+1) = rand;
+
+        /* fill in a random number of bytes for the "payload" */
+        rand = (uint8_t)util_prng_gen() % 40 + 1;
+        for(i = 0; i < rand; i++)
+        {
+            *(p_tcp_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
+        }
+
+        /* if the options length is not a multiple of 32-bit wordlength
+           then we have to pad with NOPs.
+        */
+        if(*(p_tcp_options+1) % 4 != 0)
+        {
+            padding = 4 - *(p_tcp_options+1) % 4;
+
+            if(padding > 0) {
+                memset(p_tcp_options+(*(p_tcp_options+1)), 0x01, padding);
+            }
+        }
+
+        *p_total_length = rand + padding;
+
+        g_cycle++;
+    }
+
+    return ret;
+}
+
+static int
+tcp_cycle_invalid_padding(uint8_t *p_tcp_options, uint8_t *p_total_length)
+{
+    /* 
+        this function builds the next option array 
+        if there are no more combinations left, this
+        shall return 0. In case an option was selected,
+        return 1. On error, return -1.
+    */
+
+    int i = 0;
+    uint8_t ret = GENERATOR_CYCLE_DONE;
+    uint8_t rand = 0;
+
+    /* all cycles are complete */
+    if(g_cycle == TCP_INVALID_COUNT)
+    {
+        g_cycle = 0;
+    }
+    else
+    {
+        /* if there are still cycles to fuzz */
+        ret = GENERATOR_CYCLE_NOT_DONE;
+
+        /* get a random kind */
+        rand = (uint8_t)util_prng_gen() % TCP_OPTS_NO_VALUES;
+        *(p_tcp_options+0) = g_TCP_OPTIONS[rand][TCP_OPTIONS_KIND];
+
+        /* get a random length. a valid tcp header has a max of 
+           60 bytes WITH options. a tcp header without options is 
+           20 bytes, thus a max. of 40 bytes can be added. we need
+           at least 1 byte of options which are then padded. */
+        rand = (uint8_t)util_prng_gen() % 40 + 1;
+        *(p_tcp_options+1) = rand;
+
+        /* fill in a random number of bytes for the "payload" */
+        rand = (uint8_t)util_prng_gen() % 40 + 1;
+        for(i = 0; i < rand; i++)
+        {
+            *(p_tcp_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
+        }
+
+        *p_total_length = rand;
+
+        g_cycle++;
+    }
+
+    return ret;
+}
+
+
+
+static int
+tcp_cycle_invalid(uint8_t *p_tcp_options, uint8_t *p_total_length)
+{
+
+    int i = 0;
+    uint8_t ret = GENERATOR_CYCLE_DONE;
+    int padding = 0;
+    uint8_t rand = 0;
+
+    /* all cycles are complete */
+    if(g_cycle == TCP_INVALID_COUNT)
+    {
+        g_cycle = 0;
+    }
+    else
+    {
+        /* if there are still cycles to fuzz */
+        ret = GENERATOR_CYCLE_NOT_DONE;
+
+        /* get a random kind */
+        rand = (uint8_t)util_prng_gen() % 0xff;
+        *(p_tcp_options+0) = rand;
+
+        /* get a random length. a valid tcp header has a max of 
+           60 bytes WITH options. a tcp header without options is 
+           20 bytes, thus a max. of 40 bytes can be added. we need
+           at least 1 byte of options which are then padded. */
+        rand = (uint8_t)util_prng_gen() % 40 + 1;
+        *(p_tcp_options+1) = rand;
+
+        /* depending on the length value, fill the rest of the bytes */
+        for(i = 0; i < *(p_tcp_options+1); i++)
+        {
+            *(p_tcp_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
+        }
+
+        /* if the options length is not a multiple of 32-bit wordlength
+           then we have to pad with NOPs.
+        */
+        if(*(p_tcp_options+1) % 4 != 0)
+        {
+            padding = 4 - *(p_tcp_options+1) % 4;
+
+            if(padding > 0) {
+                memset(p_tcp_options+(*(p_tcp_options+1)), 0x01, padding);
+            }
+        }
+
+        *p_total_length = *(p_tcp_options+1) + padding;
+
+        g_cycle++;
+    }
+
+    return ret;
+}
+
+static int
+generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length)
+{
+    int ret = GENERATOR_CYCLE_NOT_DONE;
+    int cycle_done = GENERATOR_CYCLE_NOT_DONE;
+
+    gen_function_t tcp_mutations[TCP_NO_MUTATIONS] = {
+        &tcp_cycle_valid,
+        &tcp_cycle_random_length,
+        &tcp_cycle_invalid_length,
+        &tcp_cycle_invalid_padding,
+        &tcp_cycle_invalid
+    };
+
+    gen_function_t mut = tcp_mutations[g_current_mutation];
+        
+    cycle_done = mut(p_tcp_options, p_total_length);
+    if(cycle_done == -1)
+    {
+        ret = GENERATOR_FAILURE;
+    }
+
+    if(cycle_done == GENERATOR_CYCLE_DONE) {
+        printf("[GENERATOR] - switching mutation\n");
+        g_current_mutation++;
+        if(g_current_mutation == TCP_NO_MUTATIONS)
+        {
+            g_current_mutation = 0;
+            printf("[GENERATOR] - complete\n");
+            ret = GENERATOR_CYCLE_DONE;
+        }
+    }
+
+    return ret;
+}
+
 /***************************************************************************
  * PUBLIC FUNCTIONS
  **************************************************************************/
@@ -256,7 +557,7 @@ generator_init(e_fuzz_mode_t mode)
     switch(g_mode)
     {
         case FUZZ_MODE_TCP_OPTIONS:
-            g_generate = &generator_cycle_tcp_options;
+            g_generate = &generator_tcp_options;
             ret = GENERATOR_SUCCESS;
         break;
         case FUZZ_MODE_IP_OPTIONS:
