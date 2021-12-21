@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 
 #include <global_cfg.h>
 #include <fuzzer.h>
@@ -72,6 +73,10 @@ main(int argc, char *argv[])
     long int port = 0;
     long int fuzz_mode = -1;
     char *endptr = NULL;
+
+    struct timespec t_start = {0,0};
+    struct timespec t_end = {0,0};
+    double t_diff = 0.0;
 
     banner();
 
@@ -184,12 +189,21 @@ main(int argc, char *argv[])
     }
     printf("\n\n");
     
+    clock_gettime(CLOCK_MONOTONIC, &t_start);
     ret = fuzzer_run(config);
     if(ret == -1)
     {
         printf("[!!] failed to run fuzzer\n");
         /* don't exit, deinit first, to free memory of config */
     }
+    clock_gettime(CLOCK_MONOTONIC, &t_end);
+
+    /* get time difference */
+    t_diff = ((double)t_end.tv_sec + 1.0e-9*t_end.tv_nsec) - 
+        ((double)t_start.tv_sec + 1.0e-9*t_start.tv_nsec);
+
+    printf("... fuzzing took about %.5f seconds\n", t_diff);
+
 
     ret = fuzzer_deinit(config);
     if(ret == -1)

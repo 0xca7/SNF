@@ -2,7 +2,7 @@ cmake_policy(SET CMP0048 NEW)
 project("Simple Network Fuzzer - SNF" VERSION 0.1.0)
 cmake_minimum_required(VERSION 3.13.0)
 
-add_compile_options(-Wall -Wextra -pedantic)
+add_compile_options(-Wall -Wextra -pedantic -lrt)
 
 set(TARGET_GROUP production CACHE STRING "Group to build")
 

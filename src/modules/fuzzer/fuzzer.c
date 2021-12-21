@@ -304,7 +304,10 @@ fuzzer_run(fuzz_config_t *p_config)
         else
         {
             iterations++;
-            printf("[iteration %ld] sending %d bytes\n", iterations, len);
+            if(iterations % 1000 == 0)
+            {
+                printf("[FUZZER] %ld packets sent\n", iterations);
+            }
         }
         if(networking_send(&buffer[0], len, p_config->target_ip.s_addr) == -1) 
         {
@@ -316,7 +319,7 @@ fuzzer_run(fuzz_config_t *p_config)
         usleep(50);
         memset(buffer, 0, SEND_BUFFER_SIZE);
     } /* while */
-    
+
     iterations = 0;
     return ret;
 }

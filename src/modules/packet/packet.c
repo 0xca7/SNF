@@ -30,9 +30,14 @@
 #define PACKET_SUCCESS  0
 #define PACKET_FAILURE  -1
 
-/** @brief the size of a tcp packet excluding the option size 
- */
+/** @brief the size of a tcp packet excluding the option size */
 #define PACKET_SIZE_TCP ( (uint32_t)sizeof(IP) + (uint32_t)sizeof(TCP) )
+
+/** @brief maximum size the pseudo header can have 
+    @note this is the size of the TCP header + max. options size
+          which is 40 bytes and the added 12 bytes of the pseudo
+          header fields from the IP header */
+#define PSEUDO_HEADER_MAX_SIZE  ( (uint32_t)(sizeof(TCP) + 40 + 12))
 
 #define TCP_STANDARD_WINDOW_LEN 5840
 
@@ -112,19 +117,17 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
 {
     assert(p_buffer != NULL);
 
-    int i = 0;
-    int linebreak = 0;
-
     const uint16_t TOTAL_PACKET_SIZE = 
         (uint16_t)PACKET_SIZE_TCP + (uint16_t)options_length;
 
-    /* TCP header and TCP options, without IP header */
-    const uint16_t TCP_SIZE = htons((uint16_t)PACKET_SIZE_TCP - sizeof(IP));
+    /* TCP header and TCP options, without IP header, 
+       size for this packet */
     const uint16_t PSEUDO_HEADER_SIZE = sizeof(TCP) + options_length + 12;
 
-    /* the 12-byte pseudo header for TCP checksum calculation 
-       the entire TCP segment is appended to this */
-    uint8_t pseudo_header[1024] = {0x00};
+    /* the pseudo header for TCP checksum calculation 
+       the entire TCP segment is appended to this. 
+       can hold the max. size of the pseudo-header */
+    uint8_t pseudo_header[PSEUDO_HEADER_MAX_SIZE] = {0x00};
 
     assert(buffer_size >= TOTAL_PACKET_SIZE);
 
@@ -190,20 +193,6 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
 
     tcphdr->check = htons(ip_calculate_checksum(&pseudo_header[0], 
         PSEUDO_HEADER_SIZE));
-
-    printf("\npacket:\n");
-    for(i = 0; i < TOTAL_PACKET_SIZE; i++)
-    {
-        printf("%02x ", *(p_buffer+i));
-        linebreak++;
-        if(linebreak == 16) 
-        {
-            linebreak = 0;
-            printf("\n");
-        }
-
-    }
-    printf("\n");
 
     return TOTAL_PACKET_SIZE;
 }

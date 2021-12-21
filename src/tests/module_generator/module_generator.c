@@ -49,8 +49,8 @@ test_generator_cycle_tcp_options()
     
     while(iter != TCP_OPTS_NO_VALUES)
     {
-        //TEST_ASSERT_EQUAL_INT(1,
-        //    generator_tcp_options(&buffer[0], &buffer_length));
+        TEST_ASSERT_EQUAL_INT(1,
+            generator_tcp_options(&buffer[0], &buffer_length));
         iter++;
     }
 }
