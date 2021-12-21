@@ -1,5 +1,17 @@
 # SNF
-SNF - Simple Network Fuzzer
+### Simple Network Fuzzer
+
+... is a very simple TCP/IP options fuzzer. The idea for this
+project came from `fuzzball2` which is, to my best knowledge, 
+not actively developed anymore. 
+
+To fuzz with SNF, do the following:
+
+```
+./snf -t [TARGET IP] -p [TARGET PORT] -i [INTERFACE NAME] -m [MODE]    
+# mode is either 0 for IP options or 1 for TCP options fuzzing
+```
+
 
 ## Dependencies
 
