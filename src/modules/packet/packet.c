@@ -166,7 +166,7 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
     
     /* offset is measured in 32-bit words. the standard offset value
        is the header size. here, bytes/one word of options are added */
-    tcphdr->doff = ((sizeof(TCP)+options_length) / 4);
+    tcphdr->doff = (sizeof(TCP)+options_length) / 4;
 
     /* syn flag is always set */
     tcphdr->syn = 1;
@@ -193,6 +193,96 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
 
     tcphdr->check = htons(ip_calculate_checksum(&pseudo_header[0], 
         PSEUDO_HEADER_SIZE));
+
+    return TOTAL_PACKET_SIZE;
+}
+
+int 
+packet_build_ip(uint8_t *p_buffer, uint32_t buffer_size, 
+    uint8_t *p_options, uint8_t options_length,
+    in_addr_t src, in_addr_t dst, uint16_t port)
+{
+    assert(p_buffer != NULL);
+
+    const uint16_t TOTAL_PACKET_SIZE = 
+        (uint16_t)PACKET_SIZE_TCP + (uint16_t)options_length;
+
+    /* TCP header and TCP options, without IP header, 
+       size for this packet */
+    const uint16_t PSEUDO_HEADER_SIZE = sizeof(TCP) + options_length + 12;
+
+    /* the pseudo header for TCP checksum calculation 
+       the entire TCP segment is appended to this. 
+       can hold the max. size of the pseudo-header */
+    uint8_t pseudo_header[PSEUDO_HEADER_MAX_SIZE] = {0x00};
+
+    assert(buffer_size >= TOTAL_PACKET_SIZE);
+
+    IP *iphdr = (IP *)p_buffer;
+    TCP *tcphdr = (TCP *)(p_buffer + sizeof(IP) + options_length);
+
+    /* build the IP header */
+    iphdr->version = 4;
+    /* 32-bit multiple of the header length and options */
+    iphdr->ihl = (sizeof(IP) + options_length) / 4;
+
+    /* octet 2: DSCP and ECN are missing */
+    iphdr->tos = 0;
+
+    iphdr->id = (uint16_t)((util_prng_gen() & 0xffff) + 1);
+
+    /* this value is not passed in, but retreived in init function */
+    iphdr->saddr = src;
+    iphdr->daddr = dst;
+
+    iphdr->protocol = IPPROTO_TCP;
+    iphdr->ttl = 255;
+
+    /* set to zero for calculation */
+    iphdr->check = 0;
+    iphdr->check = ip_calculate_checksum(&p_buffer[0], sizeof(IP));
+
+    iphdr->tot_len = htons(TOTAL_PACKET_SIZE);
+
+    /* add the options here */
+    memcpy(p_buffer+sizeof(IP),
+        p_options, options_length);
+    
+    /* build the TCP header */
+    /* NOTE: this value is random */
+    tcphdr->source = (uint16_t)((util_prng_gen() & 0xffff) + 1);
+
+    tcphdr->dest = htons(port);
+    tcphdr->seq = (uint32_t)((util_prng_gen() & 0xffff) + 1);
+    tcphdr->ack_seq = 0;
+    
+    tcphdr->doff = sizeof(TCP) / 4;
+
+    /* syn flag is always set */
+    tcphdr->syn = 1;
+
+    tcphdr->window = htons(5840);
+
+
+    /* calculate checksum here. */
+    tcphdr->check = 0;
+
+    /* TCP pseudo header is: 
+       IP src, IP dest, zero byte, protocol, tcp segment length,
+       full TCP segment */
+    memcpy(pseudo_header+0, (uint8_t*)&iphdr->saddr, 4);
+    memcpy(pseudo_header+4, (uint8_t*)&iphdr->daddr, 4);
+    /* zero byte skipped, already initialized to zero */
+    *(pseudo_header+9) = IPPROTO_TCP;
+    *((uint16_t*)(pseudo_header+10)) = htons(TOTAL_PACKET_SIZE
+        - sizeof(IP) - options_length);
+    /* add full TCP segment */
+    memcpy(pseudo_header+12, p_buffer+sizeof(IP)+options_length, 
+        TOTAL_PACKET_SIZE-sizeof(IP));
+    tcphdr->check = htons(ip_calculate_checksum(&pseudo_header[0], 
+        PSEUDO_HEADER_SIZE));
+
+
 
     return TOTAL_PACKET_SIZE;
 }

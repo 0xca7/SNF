@@ -117,7 +117,7 @@ fuzzer_get_proto(e_fuzz_mode_t mode)
             ret = IPPROTO_TCP;
         break;
         case FUZZ_MODE_IP_OPTIONS:
-            printf("[FUZZER] IP options fuzzing not implemented\n");
+            ret = IPPROTO_TCP;
         break;
         default:
             printf("[FUZZER] invalid protocol\n");
@@ -277,9 +277,10 @@ fuzzer_run(fuzz_config_t *p_config)
 
     uint64_t iterations = 0;
     int len = -1;
+
     uint8_t buffer[SEND_BUFFER_SIZE] = { 0x00 };
-    uint8_t tcp_options[OPT_BUFFER_SIZE] = { 0x00 };
-    uint8_t tcp_options_length = 0;
+    uint8_t options[OPT_BUFFER_SIZE] = { 0x00 };
+    uint8_t options_length = 0;
 
     assert(p_config != NULL);
    
@@ -289,12 +290,25 @@ fuzzer_run(fuzz_config_t *p_config)
         return ret;
     }
 
-    while( generator_run(&tcp_options[0], &tcp_options_length) )
+    while( generator_run(&options[0], &options_length) )
     {
-        len = packet_build_tcp(&buffer[0], SEND_BUFFER_SIZE, 
-            &tcp_options[0], tcp_options_length,
-            p_config->src_ip.s_addr, p_config->target_ip.s_addr, 
-            p_config->target_port);
+
+        if(p_config->mode == FUZZ_MODE_TCP_OPTIONS)
+        {
+            len = packet_build_tcp(&buffer[0], SEND_BUFFER_SIZE, 
+                &options[0], options_length,
+                p_config->src_ip.s_addr, p_config->target_ip.s_addr, 
+                p_config->target_port);
+        }
+
+        if(p_config->mode == FUZZ_MODE_IP_OPTIONS)
+        {
+            len = packet_build_ip(&buffer[0], SEND_BUFFER_SIZE, 
+                &options[0], options_length,
+                p_config->src_ip.s_addr, p_config->target_ip.s_addr, 
+                p_config->target_port);
+        }
+
         if(len == -1)
         {
             printf("[FUZZER ERROR] - failed to build packet\n");
@@ -309,6 +323,7 @@ fuzzer_run(fuzz_config_t *p_config)
                 printf("[FUZZER] %ld packets sent\n", iterations);
             }
         }
+
         if(networking_send(&buffer[0], len, p_config->target_ip.s_addr) == -1) 
         {
             printf("[FUZZER ERROR] - failed to send packet\n");

@@ -39,15 +39,28 @@
 /***************************************************************************
  * MACROS
  **************************************************************************/
+
+/** @brief readable return value on success */
 #define GENERATOR_SUCCESS                   0
+/** @brief readable return value on failure */
 #define GENERATOR_FAILURE                   -1
 
+/** @brief indicates that a cycle of generating option values is not done */
 #define GENERATOR_CYCLE_NOT_DONE            1
+/** @brief indicates that a cycle of generating option values is done */
 #define GENERATOR_CYCLE_DONE                0
 
+/***************************************************************************
+ * TCP specific
+ */
+
+/** @brief total number of options for TCP */
 #define TCP_OPTS_NO_VALUES                  14
+/** @brief index for the `kind` of an option */
 #define TCP_OPTIONS_KIND                    0
+/** @brief index for the `length` of an option */
 #define TCP_OPTIONS_LENGTH                  1
+/** @brief index for the maximum length  of an option */
 #define TCP_OPTIONS_MAX_VARLEN              2
 
 /** @brief number of packets to generate in fuzz iterations */
@@ -56,9 +69,99 @@
 /** @brief the number of different mutations for TCP options */
 #define TCP_NO_MUTATIONS                    4
 
+/** @brief the kind number for the SACK option */
 #define TCP_KIND_SACK                       5
+
+/** @brief the kind number for the fast open cookie option */
 #define TCP_KIND_TCP_FAST_OPEN_COOKIE       34
+
+/** @brief the kind number for the encryption negotiation option */
 #define TCP_KIND_TCP_ENCRYPTION_NEGOTIATION 69
+/**************************************************************************/
+
+
+
+/***************************************************************************
+ * IP specific
+ */
+
+/** @brief total number of IP options */
+#define IP_OPTS_NO_VALUES                   13
+
+/** @brief index for the option type */
+#define IP_OPTION_TYPE                      0
+
+/** @brief index for the option length */
+#define IP_OPTION_LENGTH                    1
+
+/** @brief index for the maximum option length */
+#define IP_OPTION_MAX_VARLEN                2
+
+/** @brief the number of different mutations for IP options */
+#define IP_NO_MUTATIONS                     1
+
+
+/***************************************************************************
+ * IP specific, from wireshark dissector 
+ * https://github.com/wireshark/
+ * wireshark/blob/master/epan/dissectors/packet-ip.c
+ */
+
+/* IP options */
+#define IPOPT_COPY              0x80
+
+#define IPOPT_CONTROL           0x00
+#define IPOPT_RESERVED1         0x20
+#define IPOPT_MEASUREMENT       0x40
+#define IPOPT_RESERVED2         0x60
+
+/* REF: http://www.iana.org/assignments/ip-parameters */
+#define IPOPT_EOOL      (0 |IPOPT_CONTROL)
+#define IPOPT_NOP       (1 |IPOPT_CONTROL)
+#define IPOPT_SEC       (2 |IPOPT_COPY|IPOPT_CONTROL)       /* RFC 791/1108 */
+#define IPOPT_LSR       (3 |IPOPT_COPY|IPOPT_CONTROL)
+#define IPOPT_TS        (4 |IPOPT_MEASUREMENT)
+#define IPOPT_ESEC      (5 |IPOPT_COPY|IPOPT_CONTROL)       /* RFC 1108 */
+#define IPOPT_CIPSO     (6 |IPOPT_COPY|IPOPT_CONTROL)       /* draft-
+                                                               ietf-cipso-
+                                                               ipsecurity-01 */
+#define IPOPT_RR        (7 |IPOPT_CONTROL)
+#define IPOPT_SID       (8 |IPOPT_COPY|IPOPT_CONTROL)
+#define IPOPT_SSR       (9 |IPOPT_COPY|IPOPT_CONTROL)
+#define IPOPT_ZSU       (10|IPOPT_CONTROL)                  /* Zsu */
+#define IPOPT_MTUP      (11|IPOPT_CONTROL)                  /* RFC 1063 */
+#define IPOPT_MTUR      (12|IPOPT_CONTROL)                  /* RFC 1063 */
+#define IPOPT_FINN      (13|IPOPT_COPY|IPOPT_MEASUREMENT)   /* Finn */
+#define IPOPT_VISA      (14|IPOPT_COPY|IPOPT_CONTROL)       /* Estrin */
+#define IPOPT_ENCODE    (15|IPOPT_CONTROL)                  /* VerSteeg */
+#define IPOPT_IMITD     (16|IPOPT_COPY|IPOPT_CONTROL)       /* Lee */
+#define IPOPT_EIP       (17|IPOPT_COPY|IPOPT_CONTROL)       /* RFC 1385 */
+#define IPOPT_TR        (18|IPOPT_MEASUREMENT)              /* RFC 1393 */
+#define IPOPT_ADDEXT    (19|IPOPT_COPY|IPOPT_CONTROL)       /* Ullmann IPv7 */
+#define IPOPT_RTRALT    (20|IPOPT_COPY|IPOPT_CONTROL)       /* RFC 2113 */
+#define IPOPT_SDB       (21|IPOPT_COPY|IPOPT_CONTROL)       /* RFC 1770 Graff */
+#define IPOPT_UN        (22|IPOPT_COPY|IPOPT_CONTROL)       /* Released 18-Oct-2005 */
+#define IPOPT_DPS       (23|IPOPT_COPY|IPOPT_CONTROL)       /* Malis */
+#define IPOPT_UMP       (24|IPOPT_COPY|IPOPT_CONTROL)       /* Farinacci */
+#define IPOPT_QS        (25|IPOPT_CONTROL)                  /* RFC 4782 */
+#define IPOPT_EXP       (30|IPOPT_CONTROL)                  /* RFC 4727 */
+
+
+/* IP option lengths */
+#define IPOLEN_SEC_MIN          3
+#define IPOLEN_LSR_MIN          3
+#define IPOLEN_TS_MIN           4
+#define IPOLEN_ESEC_MIN         3
+#define IPOLEN_CIPSO_MIN        10
+#define IPOLEN_RR_MIN           3
+#define IPOLEN_SID              4
+#define IPOLEN_SSR_MIN          3
+#define IPOLEN_MTU              4
+#define IPOLEN_TR               12
+#define IPOLEN_RA               4
+#define IPOLEN_SDB_MIN          6
+#define IPOLEN_QS               8
+#define IPOLEN_MAX              40
 
 /***************************************************************************
  * TYPES / DATA STRUCTURES
@@ -84,7 +187,6 @@ static uint8_t g_current_mutation = 0;
 
 /* kind, length, max length if variable */
 const uint8_t g_TCP_OPTIONS[TCP_OPTS_NO_VALUES][3] = {
-
     /* END_OF_OPTION_LIST */
     { 0, 1, 0 },
     /* NOP */
@@ -113,6 +215,62 @@ const uint8_t g_TCP_OPTIONS[TCP_OPTS_NO_VALUES][3] = {
     { 34, 4, 16 },
     /* TCP_ENCRYPTION_NEGOTIATION */
     { 69, 1, 40 }
+};
+
+const uint8_t g_IP_OPTIONS[IP_OPTS_NO_VALUES][3] = {
+
+    /* https://www.rfc-editor.org/rfc/rfc6814.html 
+       the options commented below are deprecated 
+       or not in wide use. however, I will leave them
+       here for the sake of completeness and overview. 
+
+       Options I could not find information on are
+       marked by "no information available"
+     */
+
+    { IPOPT_EOOL, 1, 0 },
+    { IPOPT_NOP, 1, 0},
+    { IPOPT_SEC, IPOLEN_SEC_MIN, IPOLEN_MAX},
+    { IPOPT_LSR, IPOLEN_LSR_MIN, IPOLEN_MAX},
+    { IPOPT_TS, IPOLEN_TS_MIN, IPOLEN_MAX},
+    { IPOPT_ESEC, IPOLEN_ESEC_MIN, IPOLEN_MAX},
+    { IPOPT_CIPSO, IPOLEN_CIPSO_MIN, IPOLEN_MAX},
+    { IPOPT_RR, IPOLEN_RR_MIN, IPOLEN_MAX},
+    // { IPOPT_SID, IPOLEN_SID, 0},
+    { IPOPT_SSR, IPOLEN_SSR_MIN, IPOLEN_MAX},
+
+    /* no information available */
+    // { IPOPT_ZSU, 1, 0},
+
+    { IPOPT_MTUP, IPOLEN_MTU, 0},
+    { IPOPT_MTUR, IPOLEN_MTU, 0},
+    
+    /* no information available */
+    // { IPOPT_FINN, 1, 0 },
+
+    // { IPOPT_VISA, 1, 0 },
+    // { IPOPT_ENCODE, 1, 0 }, 
+
+    /* no information available */
+    // { IPOPT_IMITD, 1, 0 },
+
+    // { IPOPT_EIP, 1, 0 },
+    // { IPOPT_TR, IPOLEN_TR, 0 },
+    // { IPOPT_ADDEXT, 1, 0 },
+    { IPOPT_RTRALT, IPOLEN_RA, 0 },
+    // { IPOPT_SDB, IPOLEN_SDB_MIN, IPOLEN_MAX },
+
+    /* no information available */
+    // { IPOPT_UN, 1, 0 },
+
+    // { IPOPT_DPS, 1, 0 },
+    // { IPOPT_UMP, 1, 0 },
+    { IPOPT_QS, IPOLEN_QS, 0 },
+
+    /* for experiments, left out 
+       https://www.iana.org/go/rfc4727 
+     */
+    // { IPOPT_EXP, 1, 0 }
 };
 
 /***************************************************************************
@@ -163,6 +321,17 @@ tcp_cycle_random_kind(uint8_t *p_tcp_options, uint8_t *p_total_length);
  */
 static int
 generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length);
+
+/**
+ * @brief generates valid ip options
+ * @param[inout] p_ip_options holds the generated options
+ * @param[inout] p_total_length the total length of the options inc. padding
+ * @return 1 if combinations are left, 0 if none are left, -1 on error
+ */
+static int
+ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length);
+
+
 
 /***************************************************************************
  * PRIVATE FUNCTIONS
@@ -258,7 +427,7 @@ tcp_cycle_valid(uint8_t *p_tcp_options, uint8_t *p_total_length)
             padding = 4 - *(p_tcp_options+1) % 4;
 
             if(padding > 0) {
-                memset(p_tcp_options+(*(p_tcp_options+1)), 0x01, padding);
+                memset(p_tcp_options+(*(p_tcp_options+1)), 0x00, padding);
             }
         }
 
@@ -493,6 +662,109 @@ generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length)
     return ret;
 }
 
+static int
+ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length)
+{
+    int i = 0;
+    uint8_t ret = GENERATOR_CYCLE_DONE;
+    int padding = 0;
+
+    /* all cycles are complete */
+    if(g_cycle == IP_OPTS_NO_VALUES)
+    {
+        g_cycle = 0;
+    }
+    else
+    {
+        /* if there are still cycles to fuzz */
+        ret = GENERATOR_CYCLE_NOT_DONE;
+
+        /* first byte is the kind */
+        *(p_ip_options+0) = g_IP_OPTIONS[g_cycle][IP_OPTION_TYPE];
+
+        /* then comes the length, if it is variable, choose a random value 
+           here, the length is the min value, where the MAX_VARLEN is the 
+           max value */
+        if(g_IP_OPTIONS[g_cycle][TCP_OPTIONS_MAX_VARLEN] != 0) 
+        {
+            uint8_t rand = (uint8_t)util_prng_gen();
+            uint8_t max = g_IP_OPTIONS[g_cycle][IP_OPTION_MAX_VARLEN];
+            uint8_t min = g_IP_OPTIONS[g_cycle][IP_OPTION_LENGTH];
+            
+            *(p_ip_options+1) = (rand % (max-min+1)) + min;
+        }
+        else
+        {
+            *(p_ip_options+1) = g_IP_OPTIONS[g_cycle][IP_OPTION_LENGTH];
+        }
+
+        /* depending on the length value, fill the rest of the bytes */
+        for(i = 0; i < *(p_ip_options+1); i++)
+        {
+            *(p_ip_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
+        }
+
+        /* if the options length is not a multiple of 32-bit wordlength
+           then we have to pad with NOPs 
+           calculation is as follows:
+
+           residue classes:
+           [0]: 0,4,8,12,...
+           [1]: 1,5,9,...
+           [2]: 2,6,10,...
+           [3]: 3,7,11,...
+            
+           4 - [n] = number of bytes to pad
+        */
+        if(*(p_ip_options+1) % 4 != 0)
+        {
+            padding = 4 - *(p_ip_options+1) % 4;
+
+            if(padding > 0) {
+                memset(p_ip_options+(*(p_ip_options+1)), 0x00, padding);
+            }
+        }
+
+        *p_total_length = *(p_ip_options+1) + padding;
+
+        g_cycle++;
+    }
+
+    return ret;
+}
+
+static int
+generator_ip_options(uint8_t *p_ip_options, uint8_t *p_total_length)
+{
+    int ret = GENERATOR_CYCLE_NOT_DONE;
+    int cycle_done = GENERATOR_CYCLE_NOT_DONE;
+
+    gen_function_t ip_mutations[IP_NO_MUTATIONS] = {
+        &ip_cycle_valid,
+    };
+
+    gen_function_t mut = ip_mutations[g_current_mutation];
+        
+    cycle_done = mut(p_ip_options, p_total_length);
+    if(cycle_done == -1)
+    {
+        ret = GENERATOR_FAILURE;
+    }
+
+    if(cycle_done == GENERATOR_CYCLE_DONE) {
+        g_current_mutation++;
+        if(g_current_mutation == IP_NO_MUTATIONS)
+        {
+            g_current_mutation = 0;
+            ret = GENERATOR_CYCLE_DONE;
+        }
+    }
+    
+    return ret;
+}
+
+
+
 /***************************************************************************
  * PUBLIC FUNCTIONS
  **************************************************************************/
@@ -512,7 +784,8 @@ generator_init(e_fuzz_mode_t mode)
             ret = GENERATOR_SUCCESS;
         break;
         case FUZZ_MODE_IP_OPTIONS:
-            printf("[GENERATOR] IP Options Fuzzing - not implemented\n");
+            g_generate = &generator_ip_options;
+            ret = GENERATOR_SUCCESS;
         break;
         default:
             printf("[GENERATOR] INVALID MODE\n");
