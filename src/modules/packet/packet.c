@@ -263,7 +263,6 @@ packet_build_ip(uint8_t *p_buffer, uint32_t buffer_size,
 
     tcphdr->window = htons(5840);
 
-
     /* calculate checksum here. */
     tcphdr->check = 0;
 

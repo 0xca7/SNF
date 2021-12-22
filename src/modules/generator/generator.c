@@ -98,8 +98,10 @@
 #define IP_OPTION_MAX_VARLEN                2
 
 /** @brief the number of different mutations for IP options */
-#define IP_NO_MUTATIONS                     1
+#define IP_NO_MUTATIONS                     2
 
+/** @brief the number of invalid IP packets to send */
+#define IP_NO_INVALID                  50000U
 
 /***************************************************************************
  * IP specific, from wireshark dissector 
@@ -323,7 +325,7 @@ static int
 generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length);
 
 /**
- * @brief generates valid ip options
+ * @brief generates ip options with valid length ranges and valid type
  * @param[inout] p_ip_options holds the generated options
  * @param[inout] p_total_length the total length of the options inc. padding
  * @return 1 if combinations are left, 0 if none are left, -1 on error
@@ -331,6 +333,14 @@ generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length);
 static int
 ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length);
 
+/**
+ * @brief generates ip options with invalid lengths and a random kind
+ * @param[inout] p_ip_options holds the generated options
+ * @param[inout] p_total_length the total length of the options inc. padding
+ * @return 1 if combinations are left, 0 if none are left, -1 on error
+ */
+static int
+ip_cycle_invalid(uint8_t *p_ip_options, uint8_t *p_total_length);
 
 
 /***************************************************************************
@@ -724,8 +734,88 @@ ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length)
                 memset(p_ip_options+(*(p_ip_options+1)), 0x00, padding);
             }
         }
-
+        
         *p_total_length = *(p_ip_options+1) + padding;
+        
+        /* in the case we have a length of one, 
+           the length field is overwritten by zero, so we have to increment
+           the total length by one here. this happens when a NOP or EOL 
+           is encountered */
+        if(g_IP_OPTIONS[g_cycle][IP_OPTION_LENGTH] == 1) 
+        {
+            (*p_total_length)++;
+        }
+
+        g_cycle++;
+    }
+
+    return ret;
+}
+
+static int
+ip_cycle_invalid(uint8_t *p_ip_options, uint8_t *p_total_length)
+{
+    int i = 0;
+    uint8_t ret = GENERATOR_CYCLE_DONE;
+    int padding = 0;
+    uint8_t rand = 0;
+
+    /* all cycles are complete */
+    if(g_cycle == IP_NO_INVALID)
+    {
+        g_cycle = 0;
+    }
+    else
+    {
+        /* if there are still cycles to fuzz */
+        ret = GENERATOR_CYCLE_NOT_DONE;
+
+        rand = (uint8_t)util_prng_gen() % IP_OPTS_NO_VALUES;
+
+        /* first byte is the type, choose at random */
+        *(p_ip_options+0) = g_IP_OPTIONS[rand][IP_OPTION_TYPE];
+
+        /* choose a random length */
+        rand = (uint8_t)util_prng_gen() % 40 + 1;
+        *(p_ip_options+1) = rand;
+
+        /* depending on the length value, fill the rest of the bytes */
+        for(i = 0; i < *(p_ip_options+1); i++)
+        {
+            *(p_ip_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
+        }
+
+        /* if the options length is not a multiple of 32-bit wordlength
+           then we have to pad with NOPs 
+           calculation is as follows:
+
+           residue classes:
+           [0]: 0,4,8,12,...
+           [1]: 1,5,9,...
+           [2]: 2,6,10,...
+           [3]: 3,7,11,...
+            
+           4 - [n] = number of bytes to pad
+        */
+        if(*(p_ip_options+1) % 4 != 0)
+        {
+            padding = 4 - *(p_ip_options+1) % 4;
+
+            if(padding > 0) {
+                memset(p_ip_options+(*(p_ip_options+1)), 0x00, padding);
+            }
+        }
+        
+        *p_total_length = *(p_ip_options+1) + padding;
+        
+        /* in the case we have a length of one, 
+           the length field is overwritten by zero, so we have to increment
+           the total length by one here. this happens when a NOP or EOL 
+           is encountered */
+        if(*(p_ip_options+1) == 1) 
+        {
+            (*p_total_length)++;
+        }
 
         g_cycle++;
     }
@@ -741,6 +831,7 @@ generator_ip_options(uint8_t *p_ip_options, uint8_t *p_total_length)
 
     gen_function_t ip_mutations[IP_NO_MUTATIONS] = {
         &ip_cycle_valid,
+        &ip_cycle_invalid
     };
 
     gen_function_t mut = ip_mutations[g_current_mutation];
