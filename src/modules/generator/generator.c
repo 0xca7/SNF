@@ -67,7 +67,7 @@
 #define TCP_INVALID_COUNT                   50000
 
 /** @brief the number of different mutations for TCP options */
-#define TCP_NO_MUTATIONS                    4
+#define TCP_NO_MUTATIONS                    3
 
 /** @brief the kind number for the SACK option */
 #define TCP_KIND_SACK                       5
@@ -77,6 +77,10 @@
 
 /** @brief the kind number for the encryption negotiation option */
 #define TCP_KIND_TCP_ENCRYPTION_NEGOTIATION 69
+
+/** @brief value to pad TCP options with */
+#define TCP_PAD_VALUE                       0x01
+
 /**************************************************************************/
 
 
@@ -102,6 +106,9 @@
 
 /** @brief the number of invalid IP packets to send */
 #define IP_NO_INVALID                  50000U
+
+/** @brief value to pad TCP options with */
+#define IP_PAD_VALUE                       0x00
 
 /***************************************************************************
  * IP specific, from wireshark dissector 
@@ -280,6 +287,15 @@ const uint8_t g_IP_OPTIONS[IP_OPTS_NO_VALUES][3] = {
  **************************************************************************/
 
 /**
+ * @brief calculate the number of padding bytes
+ * @param[inout] p_options holds the generated options
+ * @param[in] pad_value the value to pad with
+ * @return no. of padding bytes
+ */
+static uint8_t
+calc_options_padding(uint8_t *p_options, uint8_t pad_value);
+
+/**
  * @brief generates valid kind and length options
  * @param[inout] p_tcp_options holds the generated options
  * @param[inout] p_total_length the total length of the options inc. padding
@@ -347,6 +363,35 @@ ip_cycle_invalid(uint8_t *p_ip_options, uint8_t *p_total_length);
  * PRIVATE FUNCTIONS
  **************************************************************************/
 
+static uint8_t
+calc_options_padding(uint8_t *p_options, uint8_t pad_value)
+{
+    uint8_t padding = 0;
+
+    /* if the options length is not a multiple of 32-bit wordlength
+       then we have to pad with NOPs 
+       calculation is as follows:
+
+       residue classes:
+       [0]: 0,4,8,12,...
+       [1]: 1,5,9,...
+       [2]: 2,6,10,...
+       [3]: 3,7,11,...
+        
+       4 - [n] = number of bytes to pad
+    */
+    if(*(p_options+1) % 4 != 0)
+    {
+        padding = 4 - *(p_options+1) % 4;
+
+        if(padding > 0) {
+            memset(p_options+(*(p_options+1)), pad_value, padding);
+        } /* if there is padding to be done */
+    } /* options not multiple of word-length */
+
+    return padding;
+}
+
 static int
 tcp_cycle_valid(uint8_t *p_tcp_options, uint8_t *p_total_length) 
 {
@@ -359,7 +404,7 @@ tcp_cycle_valid(uint8_t *p_tcp_options, uint8_t *p_total_length)
 
     int i = 0;
     uint8_t ret = GENERATOR_CYCLE_DONE;
-    int padding = 0;
+    uint8_t padding = 0;
 
     /* all cycles are complete */
     if(g_cycle == TCP_OPTS_NO_VALUES)
@@ -420,27 +465,7 @@ tcp_cycle_valid(uint8_t *p_tcp_options, uint8_t *p_total_length)
             *(p_tcp_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
         }
 
-        /* if the options length is not a multiple of 32-bit wordlength
-           then we have to pad with NOPs 
-           calculation is as follows:
-
-           residue classes:
-           [0]: 0,4,8,12,...
-           [1]: 1,5,9,...
-           [2]: 2,6,10,...
-           [3]: 3,7,11,...
-            
-           4 - [n] = number of bytes to pad
-        */
-        if(*(p_tcp_options+1) % 4 != 0)
-        {
-            padding = 4 - *(p_tcp_options+1) % 4;
-
-            if(padding > 0) {
-                memset(p_tcp_options+(*(p_tcp_options+1)), 0x00, padding);
-            }
-        }
-
+        padding = calc_options_padding(p_tcp_options, TCP_PAD_VALUE);
         *p_total_length = *(p_tcp_options+1) + padding;
 
         g_cycle++;
@@ -461,7 +486,7 @@ tcp_cycle_random_length(uint8_t *p_tcp_options, uint8_t *p_total_length)
 
     int i = 0;
     uint8_t ret = GENERATOR_CYCLE_DONE;
-    int padding = 0;
+    uint8_t padding = 0;
     uint8_t rand = 0;
 
     /* all cycles are complete */
@@ -491,19 +516,18 @@ tcp_cycle_random_length(uint8_t *p_tcp_options, uint8_t *p_total_length)
             *(p_tcp_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
         }
 
-        /* if the options length is not a multiple of 32-bit wordlength
-           then we have to pad with NOPs.
-        */
-        if(*(p_tcp_options+1) % 4 != 0)
-        {
-            padding = 4 - *(p_tcp_options+1) % 4;
-
-            if(padding > 0) {
-                memset(p_tcp_options+(*(p_tcp_options+1)), 0x01, padding);
-            }
-        }
-
+        padding = calc_options_padding(p_tcp_options, TCP_PAD_VALUE);
         *p_total_length = *(p_tcp_options+1) + padding;
+
+        /* set length field to zero at random 
+           a zero length field is the reason for
+           multiple vulnerabilities as documented
+           in CVEs concerning TCP/IP stack bugs. */
+        rand = (uint8_t)util_prng_gen() % 1000;
+        {
+            printf("[SET ZERO]\n");
+            *(p_tcp_options+1) = 0x00;
+        }
 
         g_cycle++;
     }
@@ -523,7 +547,7 @@ tcp_cycle_invalid_length(uint8_t *p_tcp_options, uint8_t *p_total_length)
 
     int i = 0;
     uint8_t ret = GENERATOR_CYCLE_DONE;
-    int padding = 0;
+    uint8_t padding = 0;
     uint8_t rand = 0;
     uint8_t rand_min = 0;
     uint8_t rand_max = 0;
@@ -577,7 +601,7 @@ tcp_cycle_invalid_length(uint8_t *p_tcp_options, uint8_t *p_total_length)
             padding = 4 - rand_min % 4;
 
             if(padding > 0) {
-                memset(p_tcp_options+rand_min, 0x01, padding);
+                memset(p_tcp_options+rand_min, TCP_PAD_VALUE, padding);
             }
         }
 
@@ -646,7 +670,7 @@ generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length)
     int cycle_done = GENERATOR_CYCLE_NOT_DONE;
 
     gen_function_t tcp_mutations[TCP_NO_MUTATIONS] = {
-        &tcp_cycle_valid,
+        //&tcp_cycle_valid,
         &tcp_cycle_random_length,
         &tcp_cycle_invalid_length,
         &tcp_cycle_random_kind
@@ -677,7 +701,7 @@ ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length)
 {
     int i = 0;
     uint8_t ret = GENERATOR_CYCLE_DONE;
-    int padding = 0;
+    uint8_t padding = 0;
 
     /* all cycles are complete */
     if(g_cycle == IP_OPTS_NO_VALUES)
@@ -714,27 +738,7 @@ ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length)
             *(p_ip_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
         }
 
-        /* if the options length is not a multiple of 32-bit wordlength
-           then we have to pad with NOPs 
-           calculation is as follows:
-
-           residue classes:
-           [0]: 0,4,8,12,...
-           [1]: 1,5,9,...
-           [2]: 2,6,10,...
-           [3]: 3,7,11,...
-            
-           4 - [n] = number of bytes to pad
-        */
-        if(*(p_ip_options+1) % 4 != 0)
-        {
-            padding = 4 - *(p_ip_options+1) % 4;
-
-            if(padding > 0) {
-                memset(p_ip_options+(*(p_ip_options+1)), 0x00, padding);
-            }
-        }
-        
+        padding = calc_options_padding(p_ip_options, IP_PAD_VALUE);        
         *p_total_length = *(p_ip_options+1) + padding;
         
         /* in the case we have a length of one, 
@@ -757,7 +761,7 @@ ip_cycle_invalid(uint8_t *p_ip_options, uint8_t *p_total_length)
 {
     int i = 0;
     uint8_t ret = GENERATOR_CYCLE_DONE;
-    int padding = 0;
+    uint8_t padding = 0;
     uint8_t rand = 0;
 
     /* all cycles are complete */
@@ -775,8 +779,8 @@ ip_cycle_invalid(uint8_t *p_ip_options, uint8_t *p_total_length)
         /* first byte is the type, choose at random */
         *(p_ip_options+0) = g_IP_OPTIONS[rand][IP_OPTION_TYPE];
 
-        /* choose a random length */
-        rand = (uint8_t)util_prng_gen() % 40 + 1;
+        /* choose a random length, minimum is 4 */
+        rand = (uint8_t)util_prng_gen() % 37 + 4;
         *(p_ip_options+1) = rand;
 
         /* depending on the length value, fill the rest of the bytes */
@@ -785,37 +789,8 @@ ip_cycle_invalid(uint8_t *p_ip_options, uint8_t *p_total_length)
             *(p_ip_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
         }
 
-        /* if the options length is not a multiple of 32-bit wordlength
-           then we have to pad with NOPs 
-           calculation is as follows:
-
-           residue classes:
-           [0]: 0,4,8,12,...
-           [1]: 1,5,9,...
-           [2]: 2,6,10,...
-           [3]: 3,7,11,...
-            
-           4 - [n] = number of bytes to pad
-        */
-        if(*(p_ip_options+1) % 4 != 0)
-        {
-            padding = 4 - *(p_ip_options+1) % 4;
-
-            if(padding > 0) {
-                memset(p_ip_options+(*(p_ip_options+1)), 0x00, padding);
-            }
-        }
-        
+        padding = calc_options_padding(p_ip_options, IP_PAD_VALUE);
         *p_total_length = *(p_ip_options+1) + padding;
-        
-        /* in the case we have a length of one, 
-           the length field is overwritten by zero, so we have to increment
-           the total length by one here. this happens when a NOP or EOL 
-           is encountered */
-        if(*(p_ip_options+1) == 1) 
-        {
-            (*p_total_length)++;
-        }
 
         g_cycle++;
     }
