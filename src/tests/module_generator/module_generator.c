@@ -67,7 +67,7 @@ test_generator_cycle_tcp_options()
 void
 test_generator_init()
 {
-    TEST_ASSERT_EQUAL_INT(-1,
+    TEST_ASSERT_EQUAL_INT(0,
         generator_init(FUZZ_MODE_IP_OPTIONS));
     TEST_ASSERT_EQUAL_INT(FUZZ_MODE_IP_OPTIONS,
         g_mode);
