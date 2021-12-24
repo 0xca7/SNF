@@ -8,6 +8,8 @@
 !/doc/*.tex
 !/doc/*.md
 !/doc/*.txt
+!/doc/*.png
+!/doc/*.drawio
 !CMakeLists.txt
 !build
 !.gitignore

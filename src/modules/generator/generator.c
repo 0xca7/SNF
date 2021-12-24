@@ -136,7 +136,7 @@
 #define IP_NO_MUTATIONS                     2
 
 /** @brief the number of invalid IP packets to send */
-#define IP_NO_INVALID                       50000U
+#define IP_INVALID_COUNT                    10000U
 
 /** @brief value to pad TCP options with */
 #define IP_PAD_VALUE                        0x00
@@ -227,6 +227,21 @@ typedef enum
 }
 e_TCP_FUZZ_STATE_t;
 
+
+typedef enum 
+{
+    IP_STATE_VALID,
+    IP_STATE_INVALID,
+    IP_STATE_INVALID_INVALID_LENGTH,
+    IP_STATE_INVALID_ZERO_LENGTH,
+    IP_STATE_INVALID_RANDOM_TYPE,
+    IP_STATE_INVALID_RANDOM_TYPE_ZERO_LENGTH,
+    IP_STATE_INVALID_RANDOM_TYPE_INVALID_LENGTH,
+    /* nice, readable placeholder */
+    IP_STATE_DONE
+}
+e_IP_FUZZ_STATE_t;
+
 /***************************************************************************
  * GLOBALS
  **************************************************************************/
@@ -240,11 +255,11 @@ static uint64_t g_cycle = 0;
 /** @brief the current state of the TCP fuzzer */
 static e_TCP_FUZZ_STATE_t g_tcp_state = TCP_STATE_VALID;
 
+/** @brief the current state of the IP fuzzer */
+static e_IP_FUZZ_STATE_t g_ip_state = IP_STATE_VALID;
+
 /** @brief current fuzzing mode to use */
 static e_fuzz_mode_t g_mode = FUZZ_MODE_INVALID;
-
-/** @brief current mutation that is being applied */
-static uint8_t g_current_mutation = 0;
 
 /* kind, length, max length if variable */
 const uint8_t g_TCP_OPTIONS[TCP_OPTS_NO_VALUES][3] = {
@@ -342,7 +357,7 @@ static uint8_t
 calc_options_padding(uint8_t *p_options, uint8_t pad_value);
 
 /**
- * @brief print the current mutation state
+ * @brief print the current mutation state TCP
  * @param void
  * @return void
  */
@@ -350,13 +365,24 @@ static void
 print_tcp_state(void);
 
 /**
+ * @brief print the current mutation state of IP
+ * @param void
+ * @return void
+ */
+static void
+print_ip_state(void);
+
+/** TCP **/
+
+/**
  * @brief generates valid kind and length options
  * @param[inout] p_tcp_options holds the generated options
  * @param[inout] p_total_length the total length of the options inc. padding
- * @return 1 if combinations are left, 0 if none are left, -1 on error
+ * @return void
  */
 static void
 tcp_cycle_valid(uint8_t *p_tcp_options, uint8_t *p_total_length);
+
 
 /**
  * @brief generates a tcp options field
@@ -382,7 +408,7 @@ tcp_cycle_valid(uint8_t *p_tcp_options, uint8_t *p_total_length);
  * @param[in] length_option choose what to mutate in the length field 
  * @param[inout] p_tcp_options holds the generated options
  * @param[inout] p_total_length the total length of the options inc. padding
- * @return 1 if combinations are left, 0 if none are left, -1 on error
+ * @return void
  */
 static void
 tcp_cycle_randomize(bool randomize_kind, uint8_t length_option,
@@ -397,24 +423,28 @@ tcp_cycle_randomize(bool randomize_kind, uint8_t length_option,
 static int
 generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length);
 
+/** IP **/
+
 /**
  * @brief generates ip options with valid length ranges and valid type
  * @param[inout] p_ip_options holds the generated options
  * @param[inout] p_total_length the total length of the options inc. padding
- * @return 1 if combinations are left, 0 if none are left, -1 on error
+ * @return void
  */
-static int
+static void
 ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length);
 
 /**
  * @brief generates ip options with invalid lengths and a random kind
+ * @param[in] random_type set a completely random, possibly invalid type
+ * @param[in] length_option length is valid, zero or random
  * @param[inout] p_ip_options holds the generated options
  * @param[inout] p_total_length the total length of the options inc. padding
  * @return 1 if combinations are left, 0 if none are left, -1 on error
  */
-static int
-ip_cycle_invalid(uint8_t *p_ip_options, uint8_t *p_total_length);
-
+static void
+ip_cycle_invalid(bool random_type, uint8_t length_option,
+    uint8_t *p_ip_options, uint8_t *p_total_length);
 
 /***************************************************************************
  * PRIVATE FUNCTIONS
@@ -470,12 +500,50 @@ print_tcp_state(void)
             printf("[5] invalid kind, invalid length]\n");
         break;
         case TCP_STATE_VALID_KIND_ZERO_LENGTH:
-            printf("[5] valid kind, zero length]\n");
+            printf("[6] valid kind, zero length]\n");
         break;
         case TCP_STATE_INVALID_KIND_ZERO_LENGTH:
-            printf("[6] invalid kind, zero length]\n");
+            printf("[7] invalid kind, zero length]\n");
         break;
         case TCP_STATE_DONE:
+            printf("[!] fuzzing done. ]\n");
+        break;
+        default:
+            printf("[GENERATOR] Fatal: Unknown State\n");
+            /* if this happens, just exit. */
+            exit(1);
+        break;
+    }
+ 
+}
+
+static void
+print_ip_state(void)
+{
+    switch(g_ip_state)
+    {
+        case IP_STATE_VALID:
+            printf("[1] valid IP options]\n");
+        break;
+        case IP_STATE_INVALID:
+            printf("[2] invalid IP options - valid type, valid length\n");
+        break;
+        case IP_STATE_INVALID_INVALID_LENGTH:
+            printf("[3] invalid IP options - valid type, invalid length\n");
+        break;
+        case IP_STATE_INVALID_ZERO_LENGTH:
+            printf("[4] invalid IP options - valid type, zero length\n");
+        break;
+        case IP_STATE_INVALID_RANDOM_TYPE:
+            printf("[5] invalid IP options - invalid type\n");
+        break;
+        case IP_STATE_INVALID_RANDOM_TYPE_ZERO_LENGTH:
+            printf("[6] invalid IP options - invalid type, zero length\n");
+        break;
+        case IP_STATE_INVALID_RANDOM_TYPE_INVALID_LENGTH:
+            printf("[7] invalid IP options - invalid type, invalid length\n");
+        break;
+        case IP_STATE_DONE:
             printf("[!] fuzzing done. ]\n");
         break;
         default:
@@ -673,139 +741,169 @@ generator_tcp_options(uint8_t *p_tcp_options, uint8_t *p_total_length)
     return ret;
 }
 
-static int
+static void
 ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length)
 {
     int i = 0;
-    uint8_t ret = GENERATOR_CYCLE_DONE;
     uint8_t padding = 0;
 
-    /* all cycles are complete */
-    if(g_cycle == IP_OPTS_NO_VALUES)
+    /* first byte is the kind */
+    *(p_ip_options+0) = g_IP_OPTIONS[g_cycle][IP_OPTION_TYPE];
+
+    /* then comes the length, if it is variable, choose a random value 
+       here, the length is the min value, where the MAX_VARLEN is the 
+       max value */
+    if(g_IP_OPTIONS[g_cycle][TCP_OPTIONS_MAX_VARLEN] != 0) 
     {
-        g_cycle = 0;
+        uint8_t rand = (uint8_t)util_prng_gen();
+        uint8_t max = g_IP_OPTIONS[g_cycle][IP_OPTION_MAX_VARLEN];
+        uint8_t min = g_IP_OPTIONS[g_cycle][IP_OPTION_LENGTH];
+        
+        *(p_ip_options+1) = (rand % (max-min+1)) + min;
     }
     else
     {
-        /* if there are still cycles to fuzz */
-        ret = GENERATOR_CYCLE_NOT_DONE;
-
-        /* first byte is the kind */
-        *(p_ip_options+0) = g_IP_OPTIONS[g_cycle][IP_OPTION_TYPE];
-
-        /* then comes the length, if it is variable, choose a random value 
-           here, the length is the min value, where the MAX_VARLEN is the 
-           max value */
-        if(g_IP_OPTIONS[g_cycle][TCP_OPTIONS_MAX_VARLEN] != 0) 
-        {
-            uint8_t rand = (uint8_t)util_prng_gen();
-            uint8_t max = g_IP_OPTIONS[g_cycle][IP_OPTION_MAX_VARLEN];
-            uint8_t min = g_IP_OPTIONS[g_cycle][IP_OPTION_LENGTH];
-            
-            *(p_ip_options+1) = (rand % (max-min+1)) + min;
-        }
-        else
-        {
-            *(p_ip_options+1) = g_IP_OPTIONS[g_cycle][IP_OPTION_LENGTH];
-        }
-
-        /* depending on the length value, fill the rest of the bytes */
-        for(i = 0; i < *(p_ip_options+1); i++)
-        {
-            *(p_ip_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
-        }
-
-        padding = calc_options_padding(p_ip_options, IP_PAD_VALUE);        
-        *p_total_length = *(p_ip_options+1) + padding;
-        
-        /* in the case we have a length of one, 
-           the length field is overwritten by zero, so we have to increment
-           the total length by one here. this happens when a NOP or EOL 
-           is encountered */
-        if(g_IP_OPTIONS[g_cycle][IP_OPTION_LENGTH] == 1) 
-        {
-            (*p_total_length)++;
-        }
-
-        g_cycle++;
+        *(p_ip_options+1) = g_IP_OPTIONS[g_cycle][IP_OPTION_LENGTH];
     }
 
-    return ret;
+    /* depending on the length value, fill the rest of the bytes */
+    for(i = 0; i < *(p_ip_options+1); i++)
+    {
+        *(p_ip_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
+    }
+
+    padding = calc_options_padding(p_ip_options, IP_PAD_VALUE);        
+    *p_total_length = *(p_ip_options+1) + padding;
+    
+    /* in the case we have a length of one, 
+       the length field is overwritten by zero, so we have to increment
+       the total length by one here. this happens when a NOP or EOL 
+       is encountered */
+    if(g_IP_OPTIONS[g_cycle][IP_OPTION_LENGTH] == 1) 
+    {
+        (*p_total_length)++;
+    }
+
 }
 
-static int
-ip_cycle_invalid(uint8_t *p_ip_options, uint8_t *p_total_length)
+static void
+ip_cycle_invalid(bool random_type, uint8_t length_option,
+    uint8_t *p_ip_options, uint8_t *p_total_length)
 {
     int i = 0;
-    uint8_t ret = GENERATOR_CYCLE_DONE;
     uint8_t padding = 0;
     uint8_t rand = 0;
 
-    /* all cycles are complete */
-    if(g_cycle == IP_NO_INVALID)
+    /* first byte is the type, choose at random from
+       valid types or choose a completely random byte */
+    if(random_type)
     {
-        g_cycle = 0;
+        rand = (uint8_t)util_prng_gen() % 0xff;
+        *(p_ip_options+0) = rand;
     }
     else
     {
-        /* if there are still cycles to fuzz */
-        ret = GENERATOR_CYCLE_NOT_DONE;
-
         rand = (uint8_t)util_prng_gen() % IP_OPTS_NO_VALUES;
-
-        /* first byte is the type, choose at random */
         *(p_ip_options+0) = g_IP_OPTIONS[rand][IP_OPTION_TYPE];
-
-        /* choose a random length, minimum is 4 */
-        rand = (uint8_t)util_prng_gen() % 37 + 4;
-        *(p_ip_options+1) = rand;
-
-        /* depending on the length value, fill the rest of the bytes */
-        for(i = 0; i < *(p_ip_options+1); i++)
-        {
-            *(p_ip_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
-        }
-
-        padding = calc_options_padding(p_ip_options, IP_PAD_VALUE);
-        *p_total_length = *(p_ip_options+1) + padding;
-
-        g_cycle++;
     }
 
-    return ret;
+    /* choose a random length, minimum is 4 */
+    rand = (uint8_t)util_prng_gen() % 37 + 4;
+    *(p_ip_options+1) = rand;
+
+    /* depending on the length value, fill the rest of the bytes */
+    for(i = 0; i < *(p_ip_options+1); i++)
+    {
+        *(p_ip_options+2+i) = (uint8_t)(util_prng_gen() & 0xff);   
+    }
+
+    padding = calc_options_padding(p_ip_options, IP_PAD_VALUE);
+    *p_total_length = *(p_ip_options+1) + padding;
+
+    /* zero length has uncovered vulns in a couple of products */
+    if(length_option == MUT_LENGTH_ZERO)
+    {
+        *(p_ip_options+1) = 0;
+    }
+
+    if(length_option == MUT_LENGTH_INVALID)
+    {
+        *(p_ip_options+1) = (uint8_t)util_prng_gen() % 40 + 1;
+    }
+
 }
 
 static int
 generator_ip_options(uint8_t *p_ip_options, uint8_t *p_total_length)
 {
     int ret = GENERATOR_CYCLE_NOT_DONE;
-    int cycle_done = GENERATOR_CYCLE_NOT_DONE;
 
-    gen_function_t ip_mutations[IP_NO_MUTATIONS] = {
-        &ip_cycle_valid,
-        &ip_cycle_invalid
-    };
-
-    gen_function_t mut = ip_mutations[g_current_mutation];
-        
-    cycle_done = mut(p_ip_options, p_total_length);
-    if(cycle_done == -1)
+    if(!g_cycle)
     {
-        ret = GENERATOR_FAILURE;
+        print_ip_state();
     }
 
-    if(cycle_done == GENERATOR_CYCLE_DONE) {
-        g_current_mutation++;
-        if(g_current_mutation == IP_NO_MUTATIONS)
-        {
-            g_current_mutation = 0;
+    switch(g_ip_state)
+    {
+        case IP_STATE_VALID:
+            ip_cycle_valid(p_ip_options, p_total_length);
+        break;
+        case IP_STATE_INVALID:
+            ip_cycle_invalid(false, MUT_LENGTH_VALID,
+                p_ip_options, p_total_length);
+        break;
+        case IP_STATE_INVALID_INVALID_LENGTH:
+            ip_cycle_invalid(false, MUT_LENGTH_INVALID,
+                p_ip_options, p_total_length);
+        break;
+        case IP_STATE_INVALID_ZERO_LENGTH:
+            ip_cycle_invalid(false, MUT_LENGTH_ZERO,
+                p_ip_options, p_total_length);
+        break;
+        case IP_STATE_INVALID_RANDOM_TYPE:
+            ip_cycle_invalid(true, MUT_LENGTH_VALID,
+                p_ip_options, p_total_length);
+        break;
+        case IP_STATE_INVALID_RANDOM_TYPE_ZERO_LENGTH:
+            ip_cycle_invalid(true, MUT_LENGTH_ZERO,
+                p_ip_options, p_total_length);
+        break;
+        case IP_STATE_INVALID_RANDOM_TYPE_INVALID_LENGTH:
+            ip_cycle_invalid(true, MUT_LENGTH_INVALID,
+                p_ip_options, p_total_length);
+        break;
+        case IP_STATE_DONE:
             ret = GENERATOR_CYCLE_DONE;
+        break;
+        default:
+            printf("[GENERATOR] Fatal: Unknown State\n");
+            /* if this happens, just exit. */
+            exit(1);
+        break;
+    }
+
+    g_cycle++;
+
+    if(g_ip_state == IP_STATE_VALID)
+    {
+        if(g_cycle == IP_OPTS_NO_VALUES)
+        {
+            g_ip_state++;
+            g_cycle = 0;
         }
     }
-    
+    else
+    {
+        /* if we are done sending x invalid packets */
+        if(g_cycle == IP_INVALID_COUNT)
+        {
+            g_ip_state++;
+            g_cycle = 0;
+        }
+    }
+
     return ret;
 }
-
 
 
 /***************************************************************************

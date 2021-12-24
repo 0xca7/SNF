@@ -1,2 +1,0 @@
-# TCP parameters
-https://www.iana.org/assignments/tcp-parameters/tcp-parameters.xhtml
