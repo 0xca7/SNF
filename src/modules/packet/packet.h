@@ -39,6 +39,7 @@
 #include <assert.h>
 
 /* project specific modules */
+#include <global_cfg.h>
 #include <util.h>
 
 /***************************************************************************

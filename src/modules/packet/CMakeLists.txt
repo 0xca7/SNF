@@ -7,7 +7,7 @@ target_include_directories(packet PUBLIC
 )
 
 target_link_libraries(packet
-    #global_cfg
+    global_cfg
     util
 )
 

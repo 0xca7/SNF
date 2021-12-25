@@ -157,11 +157,6 @@ main(int argc, char *argv[])
         exit(1);
     }
 
-    printf("[*] configuration\n");
-    printf("[+] target: %s:%s\n", target_ip, target_port);
-    printf("[+] ifname: %s\n", ifname);
-    printf("[+] mode:   %s\n\n", mode);
-
     fuzz_config_t *config = fuzzer_new(
         get_mode(fuzz_mode), ifname, target_ip, (uint16_t)port
     );
@@ -222,8 +217,9 @@ static void
 banner(void)
 {
     printf("\n");
-    printf("*** OptFuzz ***\n");
-    printf("*** the fuzzer for TCP options\n");
+    printf("*** SNF ***\n");
+    printf("*** the simple network fuzzer\n");
+    printf("*** for TCP and IP options\n");
     printf("\n");
 }
 

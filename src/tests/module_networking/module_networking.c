@@ -1,6 +1,6 @@
-/** @file module.c
+/** @file module_networking.c
  * 
- * @brief A description of the module’s purpose. 
+ * @brief tests for the networking module
  *
  */
 #include <unity.h>
@@ -11,7 +11,8 @@
 
 /**
  * Author:  0xca7
- * Desc:    this is a template header
+ * Desc:    tests for the networking module, may require
+ *          elevated privs
  *
  */
 

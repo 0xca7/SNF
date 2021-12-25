@@ -91,9 +91,27 @@ It is structured as follows:
 - `global` contains global headers, configs, etc. 
 ```
 
+For SNF, the modules are structured in the following way:
+
+![SNF](doc/arch.png)
+
+The fuzzer module controls all fuzzing. It receives a fuzz 
+configuration from the user, supplied via the command line
+arguments from main. Next, the generator entity is invoked, which 
+generates an options field (TCP or IP). This field, along
+with the configuration, is passed to the packet module. Here,
+a full packet is assembled from the information passed in.
+The fuzzer receives the packet buffer, which is then sent
+to the target utilizing the networking module.
+
+For each phase described above, the variable TCP_INVALID_COUNT
+(IP_INVALID_COUNT respectively) controls how many packets are 
+sent per phase. These values are currently both defined in generator.c.
+
 ## Documentation
 
 doc contains documentation for SNF, currently only the 
-image used in this readme.
+image used in this readme. Most of the documentation is
+inline.
 
 ### 0xca7

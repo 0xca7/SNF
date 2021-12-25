@@ -21,10 +21,23 @@
 /***************************************************************************
  * LIBRARIES
  **************************************************************************/
+#include <stdio.h>
 
 /***************************************************************************
  * MACROS
  **************************************************************************/
+
+/** @brief checks if a value is NULL, returns 1 if true, 0 otherwise */
+#define CHECK_NULL(v) ( (v == NULL) ? 1 : 0 )
+
+/** brief on null pointer exception, print where it occured and exit */
+#define NULL_PTR_EXCEPTION(s)\
+    do\
+    {\
+        printf("NULL-Pointer Exception: ( %s )\n", s);\
+        exit(1);\
+    }\
+    while(0)\
 
 /***************************************************************************
  * TYPES / DATA STRUCTURES
@@ -33,7 +46,6 @@ typedef enum
 {
     FUZZ_MODE_IP_OPTIONS,   /* fuzz ip options */
     FUZZ_MODE_TCP_OPTIONS,  /* fuzz tcp options */
-
     /* NOTE: this must be in last place in the enum because of 
        internal checks. */
     FUZZ_MODE_INVALID,      /* placeholder for last item in enum */
@@ -44,11 +56,8 @@ typedef enum
  **************************************************************************/
 
 /***************************************************************************
- * FUNCTION PROTOTYPES
+ * FUNCTIONS
  **************************************************************************/
-
-
-
 
 #endif /* GLOBAL_CFG_H */
 

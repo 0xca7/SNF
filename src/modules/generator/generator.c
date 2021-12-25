@@ -72,9 +72,6 @@
 /** @brief number of packets to generate in fuzz iterations */
 #define TCP_INVALID_COUNT                   10000
 
-/** @brief the number of different mutations for TCP options */
-#define TCP_NO_MUTATIONS                    3
-
 /** @brief value to pad TCP options with */
 #define TCP_PAD_VALUE                       0x01
 
@@ -436,6 +433,7 @@ ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length);
 
 /**
  * @brief generates ip options with invalid lengths and a random kind
+ * @note see tcp_cycle_randomize for more details
  * @param[in] random_type set a completely random, possibly invalid type
  * @param[in] length_option length is valid, zero or random
  * @param[inout] p_ip_options holds the generated options
@@ -443,7 +441,7 @@ ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length);
  * @return 1 if combinations are left, 0 if none are left, -1 on error
  */
 static void
-ip_cycle_invalid(bool random_type, uint8_t length_option,
+ip_cycle_randomize(bool random_type, uint8_t length_option,
     uint8_t *p_ip_options, uint8_t *p_total_length);
 
 /***************************************************************************
@@ -485,28 +483,28 @@ print_tcp_state(void)
     switch(g_tcp_state)
     {
         case TCP_STATE_VALID:
-            printf("[1] valid packets ]\n");
+            printf("[1] valid packets\n");
         break;
         case TCP_STATE_VALID_KIND_VALID_LENGTH:
-            printf("[2] valid kind, valid length]\n");
+            printf("[2] valid kind, valid length\n");
         break;
         case TCP_STATE_INVALID_KIND_VALID_LENGTH:
-            printf("[3] invalid kind, valid length]\n");
+            printf("[3] invalid kind, valid length\n");
         break;
         case TCP_STATE_VALID_KIND_INVALID_LENGTH:
-            printf("[4] valid kind, invalid length]\n");
+            printf("[4] valid kind, invalid length\n");
         break;
         case TCP_STATE_INVALID_KIND_INVALID_LENGTH:
-            printf("[5] invalid kind, invalid length]\n");
+            printf("[5] invalid kind, invalid length\n");
         break;
         case TCP_STATE_VALID_KIND_ZERO_LENGTH:
-            printf("[6] valid kind, zero length]\n");
+            printf("[6] valid kind, zero length\n");
         break;
         case TCP_STATE_INVALID_KIND_ZERO_LENGTH:
-            printf("[7] invalid kind, zero length]\n");
+            printf("[7] invalid kind, zero length\n");
         break;
         case TCP_STATE_DONE:
-            printf("[!] fuzzing done. ]\n");
+            printf("[!] fuzzing done.\n");
         break;
         default:
             printf("[GENERATOR] Fatal: Unknown State\n");
@@ -787,7 +785,7 @@ ip_cycle_valid(uint8_t *p_ip_options, uint8_t *p_total_length)
 }
 
 static void
-ip_cycle_invalid(bool random_type, uint8_t length_option,
+ip_cycle_randomize(bool random_type, uint8_t length_option,
     uint8_t *p_ip_options, uint8_t *p_total_length)
 {
     int i = 0;
@@ -849,27 +847,27 @@ generator_ip_options(uint8_t *p_ip_options, uint8_t *p_total_length)
             ip_cycle_valid(p_ip_options, p_total_length);
         break;
         case IP_STATE_INVALID:
-            ip_cycle_invalid(false, MUT_LENGTH_VALID,
+            ip_cycle_randomize(false, MUT_LENGTH_VALID,
                 p_ip_options, p_total_length);
         break;
         case IP_STATE_INVALID_INVALID_LENGTH:
-            ip_cycle_invalid(false, MUT_LENGTH_INVALID,
+            ip_cycle_randomize(false, MUT_LENGTH_INVALID,
                 p_ip_options, p_total_length);
         break;
         case IP_STATE_INVALID_ZERO_LENGTH:
-            ip_cycle_invalid(false, MUT_LENGTH_ZERO,
+            ip_cycle_randomize(false, MUT_LENGTH_ZERO,
                 p_ip_options, p_total_length);
         break;
         case IP_STATE_INVALID_RANDOM_TYPE:
-            ip_cycle_invalid(true, MUT_LENGTH_VALID,
+            ip_cycle_randomize(true, MUT_LENGTH_VALID,
                 p_ip_options, p_total_length);
         break;
         case IP_STATE_INVALID_RANDOM_TYPE_ZERO_LENGTH:
-            ip_cycle_invalid(true, MUT_LENGTH_ZERO,
+            ip_cycle_randomize(true, MUT_LENGTH_ZERO,
                 p_ip_options, p_total_length);
         break;
         case IP_STATE_INVALID_RANDOM_TYPE_INVALID_LENGTH:
-            ip_cycle_invalid(true, MUT_LENGTH_INVALID,
+            ip_cycle_randomize(true, MUT_LENGTH_INVALID,
                 p_ip_options, p_total_length);
         break;
         case IP_STATE_DONE:

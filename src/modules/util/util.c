@@ -170,7 +170,6 @@ util_get_nic_ip(char *ifname, char *ip)
     /* and more importantly */
     strncpy(ip, 
         inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr), 15);
-    printf("[UTIL] got IP %s for interface %s\n", ip, ifname);
 
     ret = close(fd);
     if(ret == -1)

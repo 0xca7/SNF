@@ -22,7 +22,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "packet.h"
+#include <packet.h>
 
 /***************************************************************************
  * MACROS
@@ -39,6 +39,10 @@
           header fields from the IP header */
 #define PSEUDO_HEADER_MAX_SIZE  ( (uint32_t)(sizeof(TCP) + 40 + 12))
 
+/** @brief the TTL value in an IP header */
+#define IP_TTL_VALUE            255
+
+/** @brief the TCP window length parameter */
 #define TCP_STANDARD_WINDOW_LEN 5840
 
 /***************************************************************************
@@ -59,18 +63,18 @@ typedef struct tcphdr TCP;
  **************************************************************************/
 /**
  * @brief calculate the checksum of the IPv4 header
- * @param[in] bytes bytes the header consists of 
+ * @param[in] p_bytes bytes the header consists of 
  * @param[in] len the number of bytes passed in
  * @return the checksum value
  */
 static uint16_t 
-ip_calculate_checksum(uint8_t *bytes, uint16_t len);
+ip_calculate_checksum(uint8_t *p_bytes, uint16_t len);
 
 /***************************************************************************
  * PRIVATE FUNCTIONS
  **************************************************************************/
 static uint16_t
-ip_calculate_checksum(uint8_t *bytes, uint16_t len)
+ip_calculate_checksum(uint8_t *p_bytes, uint16_t len)
 {
     int i = 0; 
     uint32_t sum = 0;
@@ -89,13 +93,13 @@ ip_calculate_checksum(uint8_t *bytes, uint16_t len)
     for(i = 0; i < len; i=i+2)
     {
         /* add the word to the sum */
-        sum += (uint16_t)(*(bytes+i) << 8 | *(bytes+i+1));
+        sum += (uint16_t)(*(p_bytes+i) << 8 | *(p_bytes+i+1));
     }
 
     /* in case len is odd, we need to add the odd byte */
     if(len % 2)
     {
-        sum += *(bytes+len-1);
+        sum += *(p_bytes+len-1);
     }
 
     /* now get the carry count and add it to the sum */
@@ -115,7 +119,15 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
     uint8_t *p_options, uint8_t options_length,
     in_addr_t src, in_addr_t dst, uint16_t port)
 {
-    assert(p_buffer != NULL);
+    if(CHECK_NULL(p_buffer))
+    {
+        NULL_PTR_EXCEPTION("packet_build_tcp - p_buffer");
+    }
+
+    if(CHECK_NULL(p_options))
+    {
+        NULL_PTR_EXCEPTION("packet_build_tcp - p_options");
+    }
 
     const uint16_t TOTAL_PACKET_SIZE = 
         (uint16_t)PACKET_SIZE_TCP + (uint16_t)options_length;
@@ -148,7 +160,7 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
     iphdr->daddr = dst;
 
     iphdr->protocol = IPPROTO_TCP;
-    iphdr->ttl = 255;
+    iphdr->ttl = IP_TTL_VALUE;
 
     /* set to zero for calculation */
     iphdr->check = 0;
@@ -171,7 +183,7 @@ packet_build_tcp(uint8_t *p_buffer, uint32_t buffer_size,
     /* syn flag is always set */
     tcphdr->syn = 1;
 
-    tcphdr->window = htons(5840);
+    tcphdr->window = htons(TCP_STANDARD_WINDOW_LEN);
 
     /* add the options here */
     memcpy(p_buffer+TOTAL_PACKET_SIZE-options_length, 
@@ -202,7 +214,16 @@ packet_build_ip(uint8_t *p_buffer, uint32_t buffer_size,
     uint8_t *p_options, uint8_t options_length,
     in_addr_t src, in_addr_t dst, uint16_t port)
 {
-    assert(p_buffer != NULL);
+
+    if(CHECK_NULL(p_buffer))
+    {
+        NULL_PTR_EXCEPTION("packet_build_tcp - p_buffer");
+    }
+
+    if(CHECK_NULL(p_options))
+    {
+        NULL_PTR_EXCEPTION("packet_build_tcp - p_options");
+    }
 
     const uint16_t TOTAL_PACKET_SIZE = 
         (uint16_t)PACKET_SIZE_TCP + (uint16_t)options_length;
@@ -236,7 +257,7 @@ packet_build_ip(uint8_t *p_buffer, uint32_t buffer_size,
     iphdr->daddr = dst;
 
     iphdr->protocol = IPPROTO_TCP;
-    iphdr->ttl = 255;
+    iphdr->ttl = IP_TTL_VALUE;
 
     /* set to zero for calculation */
     iphdr->check = 0;
@@ -261,7 +282,7 @@ packet_build_ip(uint8_t *p_buffer, uint32_t buffer_size,
     /* syn flag is always set */
     tcphdr->syn = 1;
 
-    tcphdr->window = htons(5840);
+    tcphdr->window = htons(TCP_STANDARD_WINDOW_LEN);
 
     /* calculate checksum here. */
     tcphdr->check = 0;
@@ -280,8 +301,6 @@ packet_build_ip(uint8_t *p_buffer, uint32_t buffer_size,
         TOTAL_PACKET_SIZE-sizeof(IP));
     tcphdr->check = htons(ip_calculate_checksum(&pseudo_header[0], 
         PSEUDO_HEADER_SIZE));
-
-
 
     return TOTAL_PACKET_SIZE;
 }
