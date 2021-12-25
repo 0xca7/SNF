@@ -217,9 +217,9 @@ static void
 banner(void)
 {
     printf("\n");
-    printf("*** SNF ***\n");
-    printf("*** the simple network fuzzer\n");
+    printf("*** SNF - Simple Network Fuzzer\n");
     printf("*** for TCP and IP options\n");
+    printf("*** 0xca7\n");
     printf("\n");
 }
 
