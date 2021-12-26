@@ -937,11 +937,23 @@ generator_init(e_fuzz_mode_t mode)
 extern int
 generator_run(uint8_t *p_tcp_options, uint8_t *p_total_length)
 {
+
+    if(CHECK_NULL(p_tcp_options))
+    {
+        NULL_PTR_EXCEPTION("generator_run - p_tcp_options");
+    }
+
+    if(CHECK_NULL(p_total_length))
+    {
+        NULL_PTR_EXCEPTION("generator_run - p_total_length");
+    }
+
     if(g_generate == NULL)
     {
         printf("[GENERATOR] null-pointer exception\n");
         return GENERATOR_FAILURE;
     }
+
     return g_generate(&p_tcp_options[0], p_total_length);
 }
 

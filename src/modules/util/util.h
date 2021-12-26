@@ -46,6 +46,15 @@
 /***************************************************************************
  * TYPES / DATA STRUCTURES
  **************************************************************************/
+/** @brief a struct to store statistics */
+typedef struct 
+{
+    /* fuzz cases currently executed */
+    uint64_t    total;
+    /* phase the fuzzer is in */
+    char        phase[32];
+} 
+fuzz_stats_t;
 
 /***************************************************************************
  * GLOBALS

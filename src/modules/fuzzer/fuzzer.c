@@ -30,12 +30,17 @@
 #define FUZZER_SUCCESS  0
 #define FUZZER_FAILURE  -1
 
-#define OPT_BUFFER_SIZE  32
+/** @brief buffer size of options field */
+#define OPT_BUFFER_SIZE  40
+/** @brief send buffer size */
 #define SEND_BUFFER_SIZE 256
 
 #define MODE_STRING_IP_OPTIONS  "IP Options Fuzzing"
 #define MODE_STRING_TCP_OPTIONS "TCP Options Fuzzing"
 #define MODE_STRING_INVALID     "Invalid Mode"
+
+/** @brief number of iterations between printing stats */
+#define PRINT_INTERVAL          200
 
 /***************************************************************************
  * TYPES / DATA STRUCTURES
@@ -83,6 +88,14 @@ fuzzer_convert_ip(const char ip[15], struct in_addr *ip_addr);
  */
 static char*
 fuzzer_mode_to_ascii(e_fuzz_mode_t mode);
+
+/**
+ * @brief prints current fuzzing stats 
+ * @param[in] total the total number of iterations so far 
+ * @return void
+ */
+static void
+fuzzer_show_stats(fuzz_stats_t *p_stats);
 
 /***************************************************************************
  * PRIVATE FUNCTIONS
@@ -162,6 +175,20 @@ fuzzer_mode_to_ascii(e_fuzz_mode_t mode)
         break;
     }
     return p_mode_string;
+}
+
+
+static void
+fuzzer_show_stats(fuzz_stats_t *p_stats)
+{
+    system("clear");
+    printf("\n\n\n\n");
+    printf("PROGRESS ------------------------------------\n");
+    printf("[+] total fuzz cases: %ld\n", p_stats->total);
+    /*
+        printf("[+] current phase:    %s\n", p_stats->phase);
+    */
+    printf("---------------------------------------------\n");
 }
 
 
@@ -275,14 +302,21 @@ fuzzer_run(fuzz_config_t *p_config)
 {
     int ret = FUZZER_SUCCESS;
 
-    uint64_t iterations = 0;
     int len = -1;
 
     uint8_t buffer[SEND_BUFFER_SIZE] = { 0x00 };
     uint8_t options[OPT_BUFFER_SIZE] = { 0x00 };
     uint8_t options_length = 0;
 
-    assert(p_config != NULL);
+    fuzz_stats_t stats = {
+        .total = 0,
+        .phase = { 0x00 }
+    };
+
+    if(CHECK_NULL(p_config))
+    {
+        NULL_PTR_EXCEPTION("fuzzer_run - p_config");
+    }
    
     if(!g_initialized)
     {
@@ -317,10 +351,10 @@ fuzzer_run(fuzz_config_t *p_config)
         }
         else
         {
-            iterations++;
-            if(iterations % 1000 == 0)
+            stats.total++;
+            if(stats.total % PRINT_INTERVAL == 0)
             {
-                printf("[FUZZER] %ld packets sent\n", iterations);
+                fuzzer_show_stats(&stats);
             }
         }
 
@@ -335,7 +369,7 @@ fuzzer_run(fuzz_config_t *p_config)
         memset(buffer, 0, SEND_BUFFER_SIZE);
     } /* while */
 
-    iterations = 0;
+    stats.total = 0;
     return ret;
 }
 
@@ -363,10 +397,10 @@ void
 fuzzer_print_config(fuzz_config_t *p_config)
 {
     printf("** FUZZING CONFIGURATION\n\n"); 
-    printf("-- Src IP:      %s\n", inet_ntoa(p_config->src_ip));
-    printf("-- Target IP:   %s\n", inet_ntoa(p_config->target_ip));
-    printf("-- Target Port: %d\n", p_config->target_port);
-    printf("-- Mode:        %s\n", fuzzer_mode_to_ascii(p_config->mode));
+    printf("[+] Src IP:      %s\n", inet_ntoa(p_config->src_ip));
+    printf("[+] Target IP:   %s\n", inet_ntoa(p_config->target_ip));
+    printf("[+] Target Port: %d\n", p_config->target_port);
+    printf("[+] Mode:        %s\n", fuzzer_mode_to_ascii(p_config->mode));
     printf("**\n");
 }
 
